@@ -1368,6 +1368,16 @@ function renderNewTopicForm(){
         <p style="margin:0 0 8px;"><strong>Petitions for a Special Meeting</strong> — may be filed with the Town Clerk at any time and also require signatures of 5% of the town's voters. <span class="mono">17 V.S.A. § 2643(a)</span>. Once the clerk finds it conforms, a special meeting must be warned within 60 days of the petition's receipt.</p>
         <p style="margin:0;"><strong>Rules for all petitions</strong> — the petition language must appear on every page where signatures are collected <span class="mono">§2642(a)(3)(C)(ii)</span>; each signer's printed name, signature, and street address are required <span class="mono">§2642(a)(3)(C)(iii)</span>; and a single petition may contain more than one proposed article <span class="mono">§2642(a)(3)(C)(i)</span>.</p>
       </div>
+      <div class="agreements-panel" style="margin-top:10px;">
+        <strong style="display:block;margin-bottom:6px;">Which petition type is right for this?</strong>
+        <p style="margin:0 0 8px;"><strong>Advisory article</strong> — a recommendation only. It tells the board what voters want, but the board isn't legally required to act on it. Right for: sending a message, gauging support, asking the board to consider something, without forcing a binding outcome.</p>
+        <p style="margin:0 0 8px;"><strong>Binding article</strong> — if it passes, the town is legally obligated to carry it out (spending money, establishing a fund, changing a bylaw, authorizing an action). Right for: anything where a "yes" vote needs to actually make something happen, not just signal an opinion.</p>
+        <p style="margin:0 0 8px;"><strong>Selectboard vs. School Board</strong> — pick whichever body actually has authority over what you're asking for. Town budget, roads, land use, and general town governance go to the Selectboard; school budget, staffing, and curriculum-adjacent matters go to the School Board.</p>
+        <p style="margin:0;"><strong>Request a Special Meeting</strong> — for something that can't wait for the next Annual Meeting and needs its own dedicated meeting warned within 60 days of filing.</p>
+      </div>
+      <div class="agreements-panel compact" style="margin-top:10px;">
+        <strong>Not sure which one fits?</strong> The Town Clerk can help you figure out the right type and correct wording before you start collecting real signatures — it's worth asking first rather than redoing a petition later. Stop by <a href="https://www.google.com/maps/dir/?api=1&destination=318+Main+St%2C+Bethel%2C+VT+05032" target="_blank" rel="noopener">Bethel Town Hall (get directions)</a>, or email <a href="https://townofbethelvt.com/town-manager" target="_blank" rel="noopener">Town Management</a> to talk through what you're trying to accomplish.
+      </div>
       <div class="field">
         <label>What kind of petition is this?</label>
         <select id="petitionType">
@@ -1385,6 +1395,11 @@ function renderNewTopicForm(){
       <div class="field" id="petitionBallotField">
         <label style="font-size:12.5px;text-transform:none;font-weight:400;display:flex;align-items:center;gap:6px;">
           <input type="checkbox" id="petitionRequestBallot"> Request that this article be acted on by paper ballot <span style="color:var(--ink-soft);">(the board isn't required to honor this, but any 7 voters at the meeting can request paper ballot anyway)</span>
+        </label>
+      </div>
+      <div class="field">
+        <label style="font-size:12.5px;text-transform:none;font-weight:400;display:flex;align-items:flex-start;gap:6px;">
+          <input type="checkbox" id="petitionAckFinalSay" style="margin-top:2px;"> I understand that the Selectboard, School Board, or town's legal counsel has final say over whether this article is properly worded and correctly categorized as advisory or binding, and may decline, reclassify, or ask for changes to it before it's placed on a warning.
         </label>
       </div>
       ` : ''}
