@@ -296,6 +296,7 @@
     padding:6px 12px;font-size:12.5px;color:var(--ink-soft);font-weight:600;
   }
   .print-btn:hover{border-color:var(--pine-light);color:var(--pine);}
+  .print-disclaimer{ display:none; }
 
   @media print{
     .masthead, nav.tabs, .toolbar, .back-link, .print-btn, .report-btn,
@@ -311,6 +312,13 @@
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
       color-adjust: exact !important;
+    }
+    .print-disclaimer{
+      display:block !important;
+      position:fixed; bottom:0; left:0; right:0;
+      font-size:9.5px; font-style:italic; color:#555;
+      border-top:1px solid #999; padding:6px 0 0;
+      background:#fff;
     }
   }
 </style>
@@ -345,6 +353,7 @@
 </header>
 
 <main class="shell" id="app"></main>
+<div class="print-disclaimer">Reactions, poll results, petition signatures, and reply/support counts shown here reflect informal, non-binding community engagement on Bethel Town Common — an independent, resident-run site. They are not an official vote, survey, or ballot, and carry no binding authority over any town, Selectboard, or School Board decision.</div>
 
 <script>
 /* =====================================================================
@@ -558,7 +567,30 @@ function generatePetitionPdf(topic, signers){
     doc.save(`bethel-common-petition-${slug || 'organizer-copy'}.pdf`);
   }catch(e){ console.error('could not generate petition PDF', e); alert('Could not generate the petition document. Try again.'); }
 }
-function ownerCheck(realEmail){
+/* ---- reply notification emails ----
+   Requires a Supabase Edge Function named "notify-new-reply" that you deploy separately —
+   a browser page cannot send email directly. See the setup notes provided alongside this file.
+   This call is deliberately "fire and forget": if the function isn't deployed yet, or the
+   send fails, the reply itself still saves fine — the person just doesn't get an email. */
+async function sendReplyNotification(topic, reply){
+  try{
+    const res = await fetch(`${CONFIG.supabaseUrl}/functions/v1/notify-new-reply`, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization': `Bearer ${CONFIG.supabaseKey}`, 'apikey': CONFIG.supabaseKey },
+      body: JSON.stringify({
+        to: topic.contact_email,
+        topicTitle: topic.title,
+        topicId: topic.id,
+        replyAuthor: reply.authorName,
+        replyBody: reply.body,
+        siteName: CONFIG.townName
+      })
+    });
+    if(!res.ok) console.warn('notify-new-reply function returned', res.status, '— email not sent. Has the Edge Function been deployed?');
+  }catch(e){
+    console.warn('Could not reach the notify-new-reply function — email not sent.', e);
+  }
+}
   const entered = prompt('Enter the email you used when posting this:');
   if(entered===null) return false;
   return realEmail && entered.trim().toLowerCase() === realEmail.trim().toLowerCase();
@@ -1420,6 +1452,11 @@ function renderNewTopicForm(){
           <input type="checkbox" id="newDownloadCopy"> Download a copy of this post for my records (useful if it's ever flagged)
         </label>
       </div>
+      <div class="field">
+        <label style="font-size:12.5px;text-transform:none;font-weight:400;display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" id="newNotifyOnReply"> Email me when someone replies to this ${isPetitionSubmit ? 'petition' : isPollSubmit ? 'poll' : 'discussion'} <span style="color:var(--ink-soft);">(sent to the email above)</span>
+        </label>
+      </div>
       <button class="btn-primary" id="submitNewTopic">${isPoll ? 'Post poll' : isPetition ? 'Start petition' : 'Post discussion'}</button>
       <p style="font-size:11px;color:var(--ink-soft);margin-top:8px;margin-bottom:0;">By posting, you agree to follow the community agreements above.</p>
     </div>
@@ -1781,6 +1818,7 @@ function attachHandlers(){
       if(!confirm('This looks like it might include language our filter flags. Post it anyway?')) return;
     }
     const wantsCopy = document.getElementById('newDownloadCopy').checked;
+    const notifyOnReply = document.getElementById('newNotifyOnReply').checked;
     const createdAt = new Date().toISOString();
     let residency = document.getElementById('newResidency').value;
     if(residency === '__other__'){
@@ -1807,6 +1845,7 @@ function attachHandlers(){
         flags: 0, hidden: false, closes_at: closesAt, poll: pollPayload, residency: residency,
         is_petition: isPetitionSubmit,
         petition_type: petitionType, petition_meeting_date: petitionMeetingDate, petition_request_ballot: petitionRequestBallot,
+        notify_on_reply: notifyOnReply,
         reactions:{support:0,concern:0,idea:0}, replies:[]
       });
     }catch(e){ console.error(e); alert('Could not post that:\n\n' + e.message); return; }
@@ -1846,6 +1885,9 @@ function attachHandlers(){
     let saveFailed = false;
     try{ await updateTopic(t.id, {replies: t.replies}); }
     catch(e){ console.error(e); alert('Could not save that reply — check your connection.'); t.replies.pop(); saveFailed = true; }
+    if(!saveFailed && t.notify_on_reply && t.contact_email && t.contact_email.trim().toLowerCase() !== email.toLowerCase()){
+      sendReplyNotification(t, t.replies[t.replies.length-1]);
+    }
     if(!saveFailed && wantsCopy) downloadPostCopy({ title:t.title, parentTitle:t.title, category:t.category, authorName:name, createdAt: replyCreatedAt, body, kind:'reply' });
     render();
   });
