@@ -1455,7 +1455,7 @@ function renderNewTopicForm(){
       </div>
       <div class="field">
         <label style="font-size:12.5px;text-transform:none;font-weight:400;display:flex;align-items:center;gap:6px;">
-          <input type="checkbox" id="newNotifyOnReply"> Email me when someone replies to this ${isPetitionSubmit ? 'petition' : isPollSubmit ? 'poll' : 'discussion'} <span style="color:var(--ink-soft);">(sent to the email above)</span>
+          <input type="checkbox" id="newNotifyOnReply"> Email me when someone replies to this ${isPetition ? 'petition' : isPoll ? 'poll' : 'discussion'} <span style="color:var(--ink-soft);">(sent to the email above)</span>
         </label>
       </div>
       <button class="btn-primary" id="submitNewTopic">${isPoll ? 'Post poll' : isPetition ? 'Start petition' : 'Post discussion'}</button>
