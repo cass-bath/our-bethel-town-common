@@ -591,6 +591,7 @@ async function sendReplyNotification(topic, reply){
     console.warn('Could not reach the notify-new-reply function — email not sent.', e);
   }
 }
+function ownerCheck(realEmail){
   const entered = prompt('Enter the email you used when posting this:');
   if(entered===null) return false;
   return realEmail && entered.trim().toLowerCase() === realEmail.trim().toLowerCase();
@@ -626,7 +627,7 @@ function isFlaggedForMeeting(topicId){ return !!(myMeetingFlags[topicId] && myMe
 let showOnlyFlagged = false;
 let agreementItemsOpen = {}; // itemId -> bool, for the individual expandable agreement items
 const AGREEMENT_ITEMS = [
-  { id:'public', label:'A public forum, not run by the public', detail:"Like Select Board meetings, this forum is held <em>in</em> the public, not <em>of</em> the public — anyone can observe and take part, but it isn't run or owned by the assembled public. Order and mutual respect are still expected of everyone." },
+  { id:'public', label:'A public forum, moderated', detail:"Anyone in the public can observe and take part, but keeping order and enforcing these agreements is the only way this system of community discourse can succeed. Violations of these agreements are ultimately at the moderator's discretion." },
   { id:'topic', label:'Stay on topic', detail:'Comments should be addressed to the topic or to the community as a whole, not aimed at any individual person.' },
   { id:'violation', label:'What counts as a violation', detail:"A violation of these agreements includes personal, impertinent, threatening, or profane remarks, or content aimed at an individual rather than the topic at hand. Harassment or threats aren't tolerated." },
   { id:'reporting', label:'Reporting', detail:'Anyone reading this forum — not just those posting — can report a violation they see. It takes 3 separate reports, not just one person, before a post is pulled from public view and escalated for a moderator to review.' },
