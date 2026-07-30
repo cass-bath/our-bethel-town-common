@@ -558,6 +558,73 @@ const PETITION_TYPE_LABELS = {
 // Generates a personal, timestamped PDF receipt of what someone submitted to a petition —
 // either a signature or a reply — combined with the petition's own details (category, type,
 // meeting/deadline date). This is a personal record only, not a legal document.
+// Generates a PDF record of a moderator's deletion or block action: the content at time of
+// removal, the author/email, the violation type and comments picked in the moderator form, and
+// blank ruled lines for a written explanation or response.
+function generateViolationRecordPdf({ contextTitle, content, authorName, email, violationType, actionBasisLabel, violationNumber, comments, actionLabel }){
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit:'pt', format:'letter' });
+    const marginX = 54; let y = drawPdfHeading(doc);
+    const maxWidth = doc.internal.pageSize.getWidth() - marginX*2;
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(15);
+    const titleLines = doc.splitTextToSize(`Moderator Action: ${actionLabel}`, maxWidth);
+    doc.text(titleLines, marginX, y); y += titleLines.length*18 + 6;
+
+    doc.setFont('helvetica','normal'); doc.setFontSize(10.5);
+    [
+      `Date: ${new Date().toLocaleString()}`,
+      contextTitle ? `Discussion: ${contextTitle}` : null,
+      `Author: ${authorName || '—'}`,
+      `Email on file: ${email || '— none —'}`,
+      violationNumber ? `Violation number for this email: #${violationNumber}` : null,
+      `Violation type: ${violationType}`,
+      actionBasisLabel ? `Basis for action: ${actionBasisLabel}` : null
+    ].filter(Boolean).forEach(line=>{ doc.text(line, marginX, y); y += 15; });
+    y += 8;
+
+    if(content){
+      doc.setFont('helvetica','bold'); doc.setFontSize(11);
+      doc.text('Content at time of action:', marginX, y); y += 16;
+      doc.setFont('helvetica','normal'); doc.setFontSize(10.5);
+      const contentLines = doc.splitTextToSize(content, maxWidth);
+      doc.text(contentLines, marginX, y); y += contentLines.length*13 + 12;
+    }
+
+    if(comments){
+      doc.setFont('helvetica','bold'); doc.setFontSize(11);
+      doc.text('Moderator comments:', marginX, y); y += 16;
+      doc.setFont('helvetica','normal'); doc.setFontSize(10.5);
+      const commentLines = doc.splitTextToSize(comments, maxWidth);
+      doc.text(commentLines, marginX, y); y += commentLines.length*13 + 12;
+    }
+
+    y += 6;
+    doc.setFont('helvetica','bold'); doc.setFontSize(11);
+    doc.text('Space for explanation or response:', marginX, y);
+    for(let i=0;i<6;i++){
+      y += 24;
+      if(y > pageHeight - 60){ doc.addPage(); y = drawPdfHeading(doc); }
+      doc.setDrawColor(200,200,200);
+      doc.line(marginX, y, doc.internal.pageSize.getWidth()-marginX, y);
+    }
+
+    const slug = (contextTitle||'record').toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40).replace(/(^-|-$)/g,'');
+    doc.save(`bethel-common-moderation-${slug || 'record'}.pdf`);
+  }catch(e){ console.error('could not generate violation record PDF', e); alert('Could not generate the record PDF.'); }
+}
+
+// Opens the author's email client with a generic subject/body. A webpage cannot attach files to
+// an email automatically, so the moderator needs to manually attach the PDF that just downloaded.
+function openModeratorMailto(email, contextTitle){
+  if(!email) return;
+  const subject = encodeURIComponent(`Regarding your post on ${CONFIG.townName}`);
+  const body = encodeURIComponent(`Hello,\n\nYour recent post${contextTitle ? ` ("${contextTitle}")` : ''} on ${CONFIG.townName} was removed for not following the community agreements. Please see the attached record for details.\n\n(Attach the PDF that was just downloaded to your device before sending this.)\n\nThank you`);
+  window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+}
+
 function generatePetitionReceiptPdf(topic, entry){
   try{
     const { jsPDF } = window.jspdf;
@@ -714,6 +781,21 @@ function ownerCheck(realEmail){
 ===================================================================== */
 let topics = [];
 let currentTab = 'home';
+let moderatorAction = null; // pending violation-capture flow: { kind:'topic'|'reply'|'block', ... } or null when not active
+const VIOLATION_TYPES = [
+  'Personal attack or harassment',
+  'Threatening language',
+  'Profanity',
+  'Off-topic / spam',
+  'Impersonation or misinformation',
+  'Other (explain in comments)'
+];
+const ACTION_BASIS_OPTIONS = [
+  { value:'multiple', label:'Part of a pattern of multiple violations by this email' },
+  { value:'severe', label:'This single violation was severe enough on its own' },
+  { value:'instant', label:'Instant deletion for a flagrant violation' },
+  { value:'other', label:'Other (write in below)' }
+];
 let aboutSlideIndex = 0; // which About-page slide is currently showing
 let currentSort = 'rising';
 let currentSearch = '';
@@ -744,13 +826,13 @@ const AGREEMENT_ITEMS = [
   { id:'topic', label:'Stay on topic', detail:'Comments should be addressed to the topic or to the community as a whole, not aimed at any individual person.' },
   { id:'violation', label:'What counts as a violation', detail:"A violation of these agreements includes personal, impertinent, threatening, or profane remarks, or content aimed at an individual rather than the topic at hand. Harassment or threats aren't tolerated." },
   { id:'reporting', label:'Reporting', detail:'Anyone reading this forum — not just those posting — can report a violation they see. It takes 3 separate reports, not just one person, before a post is pulled from public view and escalated for a moderator to review.' },
-  { id:'consequences', label:'Consequences', detail:'If your content is removed for a violation, that alone will not necessarily stop you from posting again — but a second removal will block your email from posting further. The moderator reserves the right to block an email immediately after a single violation if it is deemed severe.' },
+  { id:'consequences', label:'Consequences', detail:'If your content is removed for a violation, that alone will not necessarily stop you from posting again — but a second removal will block your email from posting further. The moderator may act on a single flagrant violation immediately and at their own discretion — removing the content and/or blocking the email — without waiting for reports to accumulate first.' },
   { id:'privacy', label:'Privacy', detail:'Posting here is anonymous by design — choose any display name you like so you can give honest opinions. A private email is required to post, but it is never shown publicly. It is only seen by a moderator if a post is flagged and escalated for review. <strong>The one exception is petitions:</strong> starting or signing a petition is not anonymous — organizers and signers are identified by their real printed name, since that\'s how petitions work in practice and what gives them credibility.' }
 ];
 let compactReminderOpen = false;
 function saveVotedPolls(){ localStorage.setItem('tc-voted-polls', JSON.stringify(votedPolls)); }
 let blockedEmails = new Set();
-let violations = {}; // email -> count of moderator-deleted flagged content
+let violations = {}; // email -> { count, history: [ {contextTitle, content, authorName, violationType, actionBasis, comments, action, violationNumber, timestamp} ] }
 
 const ROLE_LABELS = { resident:'Community Member', board:'Select Board Member' };
 
@@ -961,33 +1043,64 @@ async function unblockEmail(email){
   blockedEmails.delete(clean);
 }
 
-/* ---- violations: first flagged-and-removed post is a pass; the 2nd auto-blocks ---- */
+/* ---- violations: kept as a full history per email, not just a count, so a moderator has an
+   on-file record of every removed post — for their own reference and as proof if a resident asks
+   what was removed and why. First flagged-and-removed post is a pass; the 2nd auto-blocks. */
 async function loadViolations(){
   try{
-    const res = await fetch(sbUrl('email_violations?select=email,count'), { headers: SB_HEADERS });
+    const res = await fetch(sbUrl('email_violations?select=email,count,history'), { headers: SB_HEADERS });
     if(!res.ok) throw new Error('GET email_violations failed: '+res.status);
     const rows = await res.json();
     violations = {};
-    rows.forEach(r=>{ violations[r.email] = r.count; });
+    rows.forEach(r=>{ violations[r.email] = { count: r.count, history: r.history || [] }; });
   }catch(e){ console.error('email_violations load error', e); }
 }
-function violationCount(email){ return violations[(email||'').trim().toLowerCase()] || 0; }
-async function recordViolation(email){
-  if(!email) return 0;
+function violationCount(email){
+  const v = violations[(email||'').trim().toLowerCase()];
+  return v ? v.count : 0;
+}
+function violationHistory(email){
+  const v = violations[(email||'').trim().toLowerCase()];
+  return v ? v.history : [];
+}
+// Logs one moderator action (delete or block) to that email's on-file history, and returns the
+// running violation number (1st, 2nd, 3rd...) for this email — this is the "system remembers for
+// you" tally, so you never have to recall whether someone's been flagged before.
+async function recordViolationDetailed(email, entry){
+  if(!email) return null;
   const clean = email.trim().toLowerCase();
-  const newCount = (violations[clean]||0) + 1;
+  const prev = violations[clean] || { count:0, history:[] };
+  const newCount = prev.count + 1;
+  const logEntry = { ...entry, violationNumber:newCount, timestamp:new Date().toISOString() };
+  const newHistory = [...prev.history, logEntry];
   try{
     await fetch(sbUrl('email_violations?on_conflict=email'), {
       method:'POST',
       headers:{...SB_HEADERS, 'Prefer':'resolution=merge-duplicates'},
-      body: JSON.stringify([{ email: clean, count: newCount, last_violation: new Date().toISOString() }])
+      body: JSON.stringify([{ email: clean, count: newCount, last_violation: new Date().toISOString(), history: newHistory }])
     });
   }catch(e){ console.error('record violation failed', e); }
-  violations[clean] = newCount;
-  if(newCount >= 2){
-    try{ await blockEmail(clean, 'automatic: 2nd violation'); }catch(e){ console.error(e); }
-  }
+  violations[clean] = { count:newCount, history:newHistory };
   return newCount;
+}
+// Finds any other currently-flagged or already-hidden content by this same email, across the
+// whole site — so a moderator reviewing one post can see the fuller pattern before deciding.
+function otherFlaggedContentByEmail(email, excludeTopicId, excludeReplyKey){
+  if(!email) return [];
+  const clean = email.trim().toLowerCase();
+  const found = [];
+  topics.forEach(t=>{
+    if((t.flags>0 || t.hidden) && (t.contact_email||'').trim().toLowerCase()===clean && t.id!==excludeTopicId){
+      found.push({ kind:'topic', title:t.title, snippet:t.body, id:t.id });
+    }
+    t.replies.forEach((r,i)=>{
+      const key = t.id+'_'+i;
+      if(((r.flags||0)>0 || r.hidden) && (r.contactEmail||'').trim().toLowerCase()===clean && key!==excludeReplyKey){
+        found.push({ kind:'reply', title:`Reply on: ${t.title}`, snippet:r.body, id:t.id });
+      }
+    });
+  });
+  return found;
 }
 
 function seedTopics(){
@@ -1077,7 +1190,7 @@ function renderAgreements(compact){
     }
     return `
     <div class="agreements-panel compact">
-      <strong>A reminder before you post:</strong> as adapted from Section F of the <a href="#" data-open-section-f="1">Select Board's public comment rules</a>, comments must be addressed to the topic, not to individuals, and must not include personal, threatening, or profane remarks. Bethel Town Common also treats abusive or harassing language as a violation. Content that violates these agreements may be removed at a moderator's discretion. It takes 3 separate reports — not just one person — before a post is pulled from public view and escalated for review. A first removal will not necessarily stop you from posting again; a second removal will block your email from posting further. The moderator reserves the right to block an email immediately after a single violation if it is deemed severe.
+      <strong>A reminder before you post:</strong> as adapted from Section F of the <a href="#" data-open-section-f="1">Select Board's public comment rules</a>, comments must be addressed to the topic, not to individuals, and must not include personal, threatening, or profane remarks. Bethel Town Common also treats abusive or harassing language as a violation. Content that violates these agreements may be removed at a moderator's discretion. It takes 3 separate reports — not just one person — before a post is pulled from public view and escalated for review, but a moderator may also act immediately on a single flagrant violation without waiting for reports. A first removal will not necessarily stop you from posting again; a second removal will block your email from posting further. The moderator may block an email immediately after a single violation if it is deemed severe.
       <div style="margin-top:8px;"><button class="agreements-collapse-btn" data-toggle-compact-agreements="1">Collapse</button></div>
     </div>`;
   }
@@ -1111,6 +1224,12 @@ function render(){
   if(printHeadingEl){
     const openTopic = currentTopicId ? topics.find(x=>x.id===currentTopicId) : null;
     printHeadingEl.classList.toggle('hide-for-petition', !!(openTopic && openTopic.is_petition));
+  }
+  if(moderatorAction){
+    if(navTabs) navTabs.style.display = 'none';
+    app.innerHTML = renderModeratorActionForm();
+    attachHandlers();
+    return;
   }
   if(currentTab === 'about'){
     if(navTabs) navTabs.style.display = 'none';
@@ -1404,6 +1523,7 @@ function renderThread(id){
         <button class="report-btn" data-report-reply="${realIndex}" data-id="${t.id}" ${flaggedMap[t.id+'_r'+realIndex]?'disabled':''}>🚩 ${flaggedMap[t.id+'_r'+realIndex] ? 'Reported' : 'Report'}</button>
         <button class="report-btn" data-edit-reply="${realIndex}" data-id="${t.id}">✏️ Edit</button>
         <button class="report-btn" data-delete-reply="${realIndex}" data-id="${t.id}">🗑️ Delete</button>
+        ${isModerator ? `<button class="report-btn" style="border-color:var(--gold);color:var(--gold-deep);" data-mod-instant-delete-reply="${realIndex}" data-id="${t.id}">🛡️ Delete now (violation)</button>` : ''}
       </div>
     </div>
   `;}).join('') || '<p style="color:var(--ink-soft);font-size:13.5px;">No replies yet.</p>';
@@ -1442,6 +1562,7 @@ function renderThread(id){
         <button class="report-btn" data-report-topic="${t.id}" ${flaggedMap[t.id+'_topic']?'disabled':''}>🚩 ${flaggedMap[t.id+'_topic'] ? 'Reported' : 'Report'}</button>
         <button class="report-btn" data-edit-topic="${t.id}">✏️ Edit</button>
         <button class="report-btn" data-delete-topic="${t.id}">🗑️ Delete</button>
+        ${isModerator ? `<button class="report-btn" style="border-color:var(--gold);color:var(--gold-deep);" data-mod-instant-delete-topic="${t.id}">🛡️ Delete now (violation)</button>` : ''}
         <button class="print-btn" title="Opens your browser's print dialog — save as PDF or print. Useful for bringing a dated copy of this discussion to a Selectboard meeting, or keeping your own record of it.">🖨️ Print</button>
       </div>
       <p style="font-size:11px;color:var(--ink-soft);margin:8px 0 0;">🖨️ Print opens your browser's print dialog — save as a PDF or print directly. Handy for bringing a dated copy of this discussion to a Selectboard meeting, or keeping your own record of it.</p>
@@ -1703,6 +1824,85 @@ function renderDigest(){
   `;
 }
 
+function renderModeratorActionForm(){
+  const a = moderatorAction;
+  const isBlock = a.kind === 'block';
+  const history = a.email ? violationHistory(a.email) : [];
+  const others = a.email ? otherFlaggedContentByEmail(a.email, a.kind==='topic'?a.id:a.topicId, a.kind==='reply'?(a.topicId+'_'+a.replyIndex):null) : [];
+
+  const historyHtml = history.length ? `
+    <div class="agreements-panel compact" style="margin-bottom:14px;">
+      <strong>On file for this email — ${history.length} prior action${history.length===1?'':'s'}:</strong>
+      ${history.map(h=>`
+        <div style="border-top:1px solid var(--line);margin-top:8px;padding-top:8px;">
+          <div style="font-size:11.5px;"><strong>Violation #${h.violationNumber}</strong> — ${new Date(h.timestamp).toLocaleDateString()} — ${escapeHtml(h.violationType)}${h.action ? ` (${h.action})` : ''}</div>
+          ${h.contextTitle ? `<div style="font-size:11px;color:var(--ink-soft);">On: ${escapeHtml(h.contextTitle)}</div>` : ''}
+          ${h.comments ? `<div style="font-size:11px;color:var(--ink-soft);font-style:italic;">"${escapeHtml(h.comments)}"</div>` : ''}
+        </div>
+      `).join('')}
+    </div>
+  ` : (a.email ? `<p style="font-size:12px;color:var(--ink-soft);margin:0 0 14px;">No prior actions on file for this email.</p>` : '');
+
+  const othersHtml = others.length ? `
+    <div class="agreements-panel compact" style="margin-bottom:14px;">
+      <strong>Other currently flagged content by this email (${others.length}):</strong>
+      ${others.map(o=>`
+        <div style="border-top:1px solid var(--line);margin-top:8px;padding-top:8px;font-size:11.5px;">
+          <strong>${o.kind==='reply' ? 'Reply' : 'Discussion'}:</strong> ${escapeHtml(o.title)}
+          <div style="color:var(--ink-soft);">"${escapeHtml(o.snippet).slice(0,140)}${o.snippet.length>140?'…':''}"</div>
+        </div>
+      `).join('')}
+    </div>
+  ` : '';
+
+  return `
+    <div class="thread-post">
+      <h2 style="font-size:19px;margin-bottom:12px;">${isBlock ? 'Block this email' : 'Delete for a violation'}</h2>
+      <div class="agreements-panel compact" style="margin-bottom:14px;">As moderator, you may take this action for a single flagrant violation at your own discretion — you don't need to wait for reports to accumulate first.</div>
+      ${a.contextTitle ? `<p style="font-size:12.5px;color:var(--ink-soft);margin:0 0 8px;">On: ${escapeHtml(a.contextTitle)}</p>` : ''}
+      ${a.content ? `<div style="background:var(--paper-dim);border-radius:var(--radius);padding:12px 14px;font-size:13.5px;white-space:pre-wrap;margin-bottom:14px;">${escapeHtml(a.content)}</div>` : ''}
+      <p style="font-size:12.5px;color:var(--ink-soft);margin:0 0 16px;">Author: ${escapeHtml(a.authorName||'—')} · Email: ${a.email ? escapeHtml(a.email) : '— none on file —'}</p>
+
+      ${historyHtml}
+      ${othersHtml}
+
+      <div class="field">
+        <label>Violation type</label>
+        <select id="modViolationType">
+          ${VIOLATION_TYPES.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label>Basis for this action</label>
+        <select id="modActionBasis">
+          ${ACTION_BASIS_OPTIONS.map(o=>`<option value="${o.value}" ${o.value===(a.suggestedBasis||'severe')?'selected':''}>${escapeHtml(o.label)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label>Additional comments / explanation <span style="text-transform:none;font-weight:400;">(optional — included in the on-file record and the printed PDF)</span></label>
+        <textarea id="modComments" placeholder="Anything you want on record about this decision..."></textarea>
+      </div>
+      ${!isBlock && a.email ? `
+      <div class="field">
+        <label style="font-size:12.5px;text-transform:none;font-weight:400;display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" id="modBlockImmediately"> Also block this email immediately <span style="color:var(--ink-soft);">(bypasses the normal 2-strike rule — use for a severe, flagrant violation)</span>
+        </label>
+      </div>` : ''}
+      ${a.email ? `
+      <div class="field">
+        <label style="font-size:12.5px;text-transform:none;font-weight:400;display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" id="modSendEmail"> Also open my email app to notify this person <span style="color:var(--ink-soft);">(optional — the action and PDF record are kept either way, so you're never required to send anything)</span>
+        </label>
+      </div>` : ''}
+      <p style="font-size:11.5px;color:var(--ink-soft);margin:0 0 14px;">Confirming will download a PDF record of this content and your decision, and ${isBlock ? 'block the email' : 'permanently delete the content'}. This record is kept on file regardless of whether you choose to notify the person, so you have it later if they ask what was removed and why.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="new-topic-btn" id="modActionConfirm">${isBlock ? 'Confirm block' : 'Confirm delete'}</button>
+        <button class="report-btn" id="modActionCancel">Cancel</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderModeration(){
   if(!isModerator){
     return `<div class="empty"><h3>Moderator access needed</h3><p>Use the "change" link at the top to enter the moderator passphrase, or click the Moderate tab again.</p></div>`;
@@ -1719,11 +1919,11 @@ function renderModeration(){
     <div class="digest-row">
       <div class="digest-title">${escapeHtml(t.title)} ${t.hidden ? '<span class="badge official" style="background:var(--gold-soft);color:var(--gold-deep);">Hidden</span>' : ''}</div>
       <p style="font-size:13px;color:var(--ink-soft);margin:6px 0;">${escapeHtml(t.body).slice(0,160)}${t.body.length>160?'…':''}</p>
-      <p style="font-size:12px;color:var(--ink-soft);">Reports: ${t.flags||0} · Contact on file: ${t.contact_email ? escapeHtml(t.contact_email) : '—'} · Prior violations: ${violationCount(t.contact_email)}</p>
+      <p style="font-size:12px;color:var(--ink-soft);">Reports: ${t.flags||0} · Contact on file: ${(t.flags||0) >= CONFIG.flagThreshold ? (t.contact_email ? escapeHtml(t.contact_email) : '—') : `hidden until ${CONFIG.flagThreshold} reports`} · Prior violations: ${violationCount(t.contact_email)}</p>
       <div class="row" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
         <button class="btn-primary" data-mod-restore-topic="${t.id}">Dismiss reports &amp; restore</button>
         <button class="new-topic-btn" data-mod-delete-topic="${t.id}">Delete permanently</button>
-        ${t.contact_email ? `<button class="report-btn" data-mod-block-email="${escapeHtml(t.contact_email)}">🚫 Block this email</button>` : ''}
+        ${t.contact_email ? `<button class="report-btn" data-mod-block-email="${escapeHtml(t.contact_email)}" data-mod-block-topic-id="${t.id}">🚫 Block this email</button>` : ''}
       </div>
     </div>
   `).join('');
@@ -1732,11 +1932,11 @@ function renderModeration(){
     <div class="digest-row">
       <div class="digest-title">Reply on: ${escapeHtml(topic.title)} ${reply.hidden ? '<span class="badge official" style="background:var(--gold-soft);color:var(--gold-deep);">Hidden</span>' : ''}</div>
       <p style="font-size:13px;color:var(--ink-soft);margin:6px 0;">"${escapeHtml(reply.body).slice(0,160)}${reply.body.length>160?'…':''}" — ${escapeHtml(reply.authorName)}</p>
-      <p style="font-size:12px;color:var(--ink-soft);">Reports: ${reply.flags||0} · Contact on file: ${reply.contactEmail ? escapeHtml(reply.contactEmail) : '—'} · Prior violations: ${violationCount(reply.contactEmail)}</p>
+      <p style="font-size:12px;color:var(--ink-soft);">Reports: ${reply.flags||0} · Contact on file: ${(reply.flags||0) >= CONFIG.flagThreshold ? (reply.contactEmail ? escapeHtml(reply.contactEmail) : '—') : `hidden until ${CONFIG.flagThreshold} reports`} · Prior violations: ${violationCount(reply.contactEmail)}</p>
       <div class="row" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
         <button class="btn-primary" data-mod-restore-reply="${index}" data-topic-id="${topic.id}">Dismiss reports &amp; restore</button>
         <button class="new-topic-btn" data-mod-delete-reply="${index}" data-topic-id="${topic.id}">Delete permanently</button>
-        ${reply.contactEmail ? `<button class="report-btn" data-mod-block-email="${escapeHtml(reply.contactEmail)}">🚫 Block this email</button>` : ''}
+        ${reply.contactEmail ? `<button class="report-btn" data-mod-block-email="${escapeHtml(reply.contactEmail)}" data-mod-block-topic-id="${topic.id}" data-mod-block-reply-index="${index}">🚫 Block this email</button>` : ''}
       </div>
     </div>
   `).join('');
@@ -1749,7 +1949,7 @@ function renderModeration(){
   `).join('') || '<p style="color:var(--ink-soft);font-size:13.5px;">No blocked emails.</p>';
 
   return `
-    <div class="digest-note">Moderator view — flagged discussions and replies land here for review. Nothing here is visible to residents unless you restore it.</div>
+    <div class="digest-note">Moderator view — anything with at least one report lands here so you have early visibility, but it stays fully visible on the public site until it reaches ${CONFIG.flagThreshold} reports, at which point it auto-hides from residents. Once something is auto-hidden, it stays that way unless you restore it here. You can also act on a single flagrant violation immediately, from any discussion — you don't have to wait for reports to accumulate.</div>
     <h3 style="font-size:15px;margin-bottom:10px;">Flagged discussions</h3>
     ${topicRows || '<p style="color:var(--ink-soft);font-size:13.5px;margin-bottom:20px;">Nothing flagged right now.</p>'}
     <h3 style="font-size:15px;margin:24px 0 10px;">Flagged replies</h3>
@@ -2138,18 +2338,11 @@ function attachHandlers(){
     });
   });
   document.querySelectorAll('[data-mod-delete-topic]').forEach(el=>{
-    el.addEventListener('click', async ()=>{
+    el.addEventListener('click', ()=>{
       const id = el.getAttribute('data-mod-delete-topic');
       const t = topics.find(x=>x.id===id);
-      if(!confirm('Delete this discussion permanently? This cannot be undone.')) return;
-      try{
-        const email = t ? t.contact_email : null;
-        await deleteTopic(id);
-        if(email){
-          const count = await recordViolation(email);
-          if(count >= 2) alert('This is that email\'s 2nd violation — it has been automatically blocked from posting further.');
-        }
-      }catch(e){ console.error(e); alert('Could not delete — check your connection.'); }
+      if(!t) return;
+      moderatorAction = { kind:'topic', id, contextTitle:t.title, content:t.body, authorName:t.author_name, email:t.contact_email, suggestedBasis: violationCount(t.contact_email)>0 ? 'multiple' : 'severe' };
       render();
     });
   });
@@ -2165,21 +2358,32 @@ function attachHandlers(){
     });
   });
   document.querySelectorAll('[data-mod-delete-reply]').forEach(el=>{
-    el.addEventListener('click', async ()=>{
+    el.addEventListener('click', ()=>{
       const idx = parseInt(el.getAttribute('data-mod-delete-reply'),10);
       const tid = el.getAttribute('data-topic-id');
       const t = topics.find(x=>x.id===tid);
       if(!t || !t.replies[idx]) return;
-      if(!confirm('Delete this reply permanently? This cannot be undone.')) return;
-      const email = t.replies[idx].contactEmail;
-      t.replies.splice(idx,1);
-      try{
-        await updateTopic(tid, {replies: t.replies});
-        if(email){
-          const count = await recordViolation(email);
-          if(count >= 2) alert('This is that email\'s 2nd violation — it has been automatically blocked from posting further.');
-        }
-      }catch(e){ console.error(e); }
+      moderatorAction = { kind:'reply', topicId:tid, replyIndex:idx, contextTitle:t.title, content:t.replies[idx].body, authorName:t.replies[idx].authorName, email:t.replies[idx].contactEmail, suggestedBasis: violationCount(t.replies[idx].contactEmail)>0 ? 'multiple' : 'severe' };
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-mod-instant-delete-topic]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const id = el.getAttribute('data-mod-instant-delete-topic');
+      const t = topics.find(x=>x.id===id);
+      if(!t) return;
+      moderatorAction = { kind:'topic', id, contextTitle:t.title, content:t.body, authorName:t.author_name, email:t.contact_email, suggestedBasis:'instant' };
+      render();
+    });
+  });
+  document.querySelectorAll('[data-mod-instant-delete-reply]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const idx = parseInt(el.getAttribute('data-mod-instant-delete-reply'),10);
+      const tid = el.getAttribute('data-id');
+      const t = topics.find(x=>x.id===tid);
+      if(!t || !t.replies[idx]) return;
+      moderatorAction = { kind:'reply', topicId:tid, replyIndex:idx, contextTitle:t.title, content:t.replies[idx].body, authorName:t.replies[idx].authorName, email:t.replies[idx].contactEmail, suggestedBasis:'instant' };
       render();
     });
   });
@@ -2262,11 +2466,19 @@ function attachHandlers(){
   });
 
   document.querySelectorAll('[data-mod-block-email]').forEach(el=>{
-    el.addEventListener('click', async ()=>{
+    el.addEventListener('click', ()=>{
       const email = el.getAttribute('data-mod-block-email');
-      if(!confirm(`Block ${email} from posting further topics or replies?`)) return;
-      try{ await blockEmail(email, 'blocked from flagged content review'); }
-      catch(e){ console.error(e); alert('Could not block — check your connection.'); return; }
+      const topicId = el.getAttribute('data-mod-block-topic-id');
+      const replyIndex = el.getAttribute('data-mod-block-reply-index');
+      const t = topicId ? topics.find(x=>x.id===topicId) : null;
+      if(replyIndex !== null && t && t.replies[parseInt(replyIndex,10)]){
+        const r = t.replies[parseInt(replyIndex,10)];
+        moderatorAction = { kind:'block', email, contextTitle:t.title, content:r.body, authorName:r.authorName, suggestedBasis: violationCount(email)>0 ? 'multiple' : 'severe' };
+      } else if(t){
+        moderatorAction = { kind:'block', email, contextTitle:t.title, content:t.body, authorName:t.author_name, suggestedBasis: violationCount(email)>0 ? 'multiple' : 'severe' };
+      } else {
+        moderatorAction = { kind:'block', email, contextTitle:null, content:null, authorName:null, suggestedBasis: violationCount(email)>0 ? 'multiple' : 'severe' };
+      }
       render();
     });
   });
@@ -2285,6 +2497,58 @@ function attachHandlers(){
       catch(e){ console.error(e); alert('Could not unblock — check your connection.'); return; }
       render();
     });
+  });
+
+  const modCancel = document.getElementById('modActionCancel');
+  if(modCancel) modCancel.addEventListener('click', ()=>{ moderatorAction = null; render(); });
+
+  const modConfirm = document.getElementById('modActionConfirm');
+  if(modConfirm) modConfirm.addEventListener('click', async ()=>{
+    const a = moderatorAction;
+    if(!a) return;
+    const violationType = document.getElementById('modViolationType').value;
+    const actionBasisValue = document.getElementById('modActionBasis').value;
+    const actionBasisLabel = (ACTION_BASIS_OPTIONS.find(o=>o.value===actionBasisValue)||{}).label || actionBasisValue;
+    const comments = document.getElementById('modComments').value.trim();
+    const blockImmediatelyEl = document.getElementById('modBlockImmediately');
+    const blockImmediately = blockImmediatelyEl ? blockImmediatelyEl.checked : false;
+    const sendEmailEl = document.getElementById('modSendEmail');
+    const sendEmail = sendEmailEl ? sendEmailEl.checked : false;
+    const actionLabel = a.kind === 'block' ? 'Email blocked' : 'Content deleted';
+
+    let violationNumber = null;
+    if(a.email){
+      violationNumber = await recordViolationDetailed(a.email, {
+        contextTitle: a.contextTitle, content: a.content, authorName: a.authorName,
+        violationType, actionBasis: actionBasisLabel, comments, action: actionLabel
+      });
+    }
+
+    generateViolationRecordPdf({
+      contextTitle: a.contextTitle, content: a.content, authorName: a.authorName,
+      email: a.email, violationType, actionBasisLabel, violationNumber, comments, actionLabel
+    });
+
+    try{
+      if(a.kind === 'topic'){
+        await deleteTopic(a.id);
+      } else if(a.kind === 'reply'){
+        const t = topics.find(x=>x.id===a.topicId);
+        if(t && t.replies[a.replyIndex]){
+          t.replies.splice(a.replyIndex,1);
+          await updateTopic(a.topicId, {replies: t.replies});
+        }
+      }
+      if(a.email && (a.kind === 'block' || blockImmediately || (violationNumber && violationNumber >= 2))){
+        await blockEmail(a.email, `${violationType} — ${actionBasisLabel}${comments ? ' — ' + comments : ''}`);
+      }
+    }catch(e){ console.error(e); alert('Something went wrong completing this action — check your connection. The PDF and on-file record were still saved.'); }
+
+    if(sendEmail && a.email) openModeratorMailto(a.email, a.contextTitle);
+    moderatorAction = null;
+    currentTab = 'moderate';
+    currentTopicId = null;
+    render();
   });
 }
 
