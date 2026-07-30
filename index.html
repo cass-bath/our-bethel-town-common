@@ -531,30 +531,6 @@ function generatePetitionReceiptPdf(topic, entry){
   }catch(e){ console.error('could not generate petition receipt PDF', e); }
 }
 
-// Emails the same receipt, via a Supabase Edge Function you deploy separately (same setup as
-// notify-new-reply — see prior setup notes). Fire-and-forget: if the function isn't deployed
-// yet, the PDF download above still happens fine, the person just won't also get an email.
-async function sendPetitionReceiptEmail(topic, email, entry){
-  try{
-    const res = await fetch(`${CONFIG.supabaseUrl}/functions/v1/send-petition-receipt`, {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json', 'Authorization': `Bearer ${CONFIG.supabaseKey}`, 'apikey': CONFIG.supabaseKey },
-      body: JSON.stringify({
-        to: email,
-        topicTitle: topic.title,
-        category: topic.category,
-        petitionType: PETITION_TYPE_LABELS[topic.petition_type] || 'Petition',
-        meetingDate: topic.petition_meeting_date,
-        siteName: CONFIG.townName,
-        entry
-      })
-    });
-    if(!res.ok) console.warn('send-petition-receipt function returned', res.status, '— email not sent. Has the Edge Function been deployed?');
-  }catch(e){
-    console.warn('Could not reach the send-petition-receipt function — email not sent.', e);
-  }
-}
-
 function generatePetitionPdf(topic, signers){
   try{
     const { jsPDF } = window.jspdf;
@@ -1146,7 +1122,7 @@ function renderHome(){
         </label>` : ''}
       </div>
       <div style="display:flex;gap:8px;">
-        <button class="print-btn" title="Print this list">🖨️ Print list</button>
+        <button class="print-btn" title="Opens your browser's print dialog — save as PDF or print. Useful for showing community momentum at a meeting or keeping a dated record of what's currently active.">🖨️ Print list</button>
         ${viewerRole === 'board'
           ? `<span style="font-size:12px;color:var(--ink-soft);align-self:center;">Board members read discussions here but don't start them, per Open Meeting Law.</span>`
           : `<button class="new-topic-btn" id="openNewTopic">Start a discussion</button>`}
@@ -1181,7 +1157,7 @@ function renderPetitionWidget(t, closed){
         <input type="checkbox" id="petitionConfirmPublic" style="margin-top:2px;"> I understand my full name will be shown publicly on this petition for coordination purposes — I am not signing anonymously.
       </label>
       <p style="font-size:11px;color:var(--ink-soft);margin:0 0 8px;">Only your name is ever shown publicly. Your email and street address are never shown publicly — they're only visible to the petition's organizer, and only after entering their one-time passcode.</p>
-      <p style="font-size:11px;color:var(--ink-soft);margin:0 0 8px;">A copy of your addition to this petition will be sent to the email you provided. When the creator of the petition comes to get your ink-on-paper signature, be sure to verify that the copy you're signing matches the version you agreed to online.</p>
+      <p style="font-size:11px;color:var(--ink-soft);margin:0 0 8px;">Signing will automatically download a PDF receipt to your device (check your browser's default downloads location if you don't see it). It's your personal record of exactly what you submitted — keep it so you can compare it to the paper petition and confirm the wording matches before you give your ink-on-paper signature.</p>
       <button class="btn-primary" data-sign-petition="${t.id}">Add my signature</button>
     </div>
   ` : `<p style="font-size:12.5px;color:var(--ink-soft);margin-top:8px;">${hasSignedLocally ? "You've already signed this petition." : closed ? 'This petition is closed to new signatures.' : viewerRole==='board' ? 'Viewing as Select Board Member — signatures shown for reference only.' : ''}</p>`;
@@ -1190,6 +1166,7 @@ function renderPetitionWidget(t, closed){
     <div class="agreements-panel" style="margin-top:14px;">
       <strong>Organizer view unlocked.</strong> ${unlocked.length} full signer record(s) available, including emails and street addresses.
       <div style="margin-top:8px;"><button class="btn-primary" data-print-petition="${t.id}">🖨️ Print organizer copy (with contact info)</button></div>
+      <p style="font-size:11px;color:var(--ink-soft);margin-top:8px;margin-bottom:0;">This downloads a PDF to your device (check your downloads if it doesn't open automatically) — the full signer list with blank signature lines, formatted so you can collect the real ink-on-paper signatures needed to file this with the Town Clerk.</p>
     </div>
   ` : `
     <div class="agreements-panel compact" style="margin-top:14px;">
@@ -1341,7 +1318,7 @@ function renderThread(id){
         <button class="report-btn" data-report-topic="${t.id}" ${flaggedMap[t.id+'_topic']?'disabled':''}>🚩 ${flaggedMap[t.id+'_topic'] ? 'Reported' : 'Report'}</button>
         <button class="report-btn" data-edit-topic="${t.id}">✏️ Edit</button>
         <button class="report-btn" data-delete-topic="${t.id}">🗑️ Delete</button>
-        <button class="print-btn" title="Print this discussion">🖨️ Print</button>
+        <button class="print-btn" title="Opens your browser's print dialog — save as PDF or print. Useful for bringing a dated copy of this discussion to a Selectboard meeting, or keeping your own record of it.">🖨️ Print</button>
       </div>
       <div style="margin-top:12px;"><span class="pulse-label">Momentum</span> ${pulseSVG(score)}</div>
     </div>
@@ -1367,9 +1344,9 @@ function renderThread(id){
       <input type="text" id="replyResidencyOther" placeholder="Which town?" style="width:100%;margin-bottom:8px;display:none;border:1px solid var(--line);border-radius:var(--radius);padding:8px 10px;font-family:inherit;font-size:13px;">
       <textarea id="replyBody" placeholder="Add your perspective..."></textarea>
       <label style="font-size:12.5px;display:flex;align-items:center;gap:6px;margin-top:8px;">
-        <input type="checkbox" id="replyDownloadCopy"> Download a copy of this reply for my records (useful if it's ever flagged)
+        <input type="checkbox" id="replyDownloadCopy"> Download a copy of this reply for my records <span style="color:var(--ink-soft);">(a PDF saves automatically to your device's downloads — useful as proof of exactly what you wrote if this reply is ever flagged for review)</span>
       </label>
-      ${t.is_petition ? `<p style="font-size:11px;color:var(--ink-soft);margin-top:8px;margin-bottom:0;">A copy of your reply will be sent to the email you provided, since replies on petitions are not anonymous.</p>` : ''}
+      ${t.is_petition ? `<p style="font-size:11px;color:var(--ink-soft);margin-top:8px;margin-bottom:0;">Posting will also automatically download a separate PDF receipt of your reply plus the petition's details (category, type, meeting date) — check your device's downloads if you don't see it appear. Keep it as your record, since replies on petitions are not anonymous.</p>` : ''}
       <div class="row" style="justify-content:flex-end;">
         <button class="btn-primary" id="submitReply">Post reply</button>
       </div>
@@ -1526,7 +1503,7 @@ function renderNewTopicForm(){
       </div>
       <div class="field">
         <label style="font-size:12.5px;text-transform:none;font-weight:400;display:flex;align-items:center;gap:6px;">
-          <input type="checkbox" id="newDownloadCopy"> Download a copy of this post for my records (useful if it's ever flagged)
+          <input type="checkbox" id="newDownloadCopy"> Download a copy of this post for my records <span style="color:var(--ink-soft);">(a PDF saves automatically to your device's downloads — useful as proof of exactly what you wrote if this post is ever flagged for review)</span>
         </label>
       </div>
       <button class="btn-primary" id="submitNewTopic">${isPoll ? 'Post poll' : isPetition ? 'Start petition' : 'Post discussion'}</button>
@@ -1549,6 +1526,19 @@ function renderDigest(){
         <div class="digest-title">🗳️ ${escapeHtml(t.title)} ${isClosed(t) ? '<span class="badge closed">Closed</span>' : ''}</div>
         <div class="digest-bars">${bars}</div>
         <div class="digest-legend">${legend}<span>💬 ${t.replies.length} replies</span></div>
+      </div>`;
+    }
+    if(t.is_petition){
+      const signers = petitionSignerList(t.id);
+      const confirmedCount = petitionConfirmedCount(t.id);
+      return `
+      <div class="digest-row" data-open="${t.id}">
+        <div class="digest-title">📋 ${escapeHtml(t.title)} ${isClosed(t) ? '<span class="badge closed">Closed</span>' : ''}</div>
+        <div class="digest-legend">
+          <span>✍️ ${signers.length} signature${signers.length===1?'':'s'}</span>
+          <span>${confirmedCount} self-identified as registered voters</span>
+          <span>💬 ${t.replies.length} replies</span>
+        </div>
       </div>`;
     }
     const r = t.reactions;
@@ -1581,7 +1571,7 @@ function renderDigest(){
         <option value="">All categories</option>
         ${CONFIG.categories.map(c=>`<option value="${c}" ${digestCategoryFilter===c?'selected':''}>${c}</option>`).join('')}
       </select>
-      <button class="print-btn" title="Print this summary">🖨️ Print summary</button>
+      <button class="print-btn" title="Opens your browser's print dialog — save as PDF or print. Useful for showing officials the full picture of community sentiment at a glance.">🖨️ Print summary</button>
     </div>
     ${rows}
   `;
@@ -1741,7 +1731,6 @@ function attachHandlers(){
       if(t){
         const entry = { kind:'signature', name, confirmedVoter, timestamp:new Date().toISOString() };
         generatePetitionReceiptPdf(t, entry);
-        sendPetitionReceiptEmail(t, email, entry);
       }
       render();
     });
@@ -1969,7 +1958,6 @@ function attachHandlers(){
     if(!saveFailed && t.is_petition){
       const entry = { kind:'reply', name, body, timestamp:replyCreatedAt };
       generatePetitionReceiptPdf(t, entry);
-      sendPetitionReceiptEmail(t, email, entry);
     }
     if(!saveFailed && wantsCopy) downloadPostCopy({ title:t.title, parentTitle:t.title, category:t.category, authorName:name, createdAt: replyCreatedAt, body, kind:'reply' });
     render();
