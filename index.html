@@ -1128,6 +1128,7 @@ function renderHome(){
           : `<button class="new-topic-btn" id="openNewTopic">Start a discussion</button>`}
       </div>
     </div>
+    <p style="font-size:11px;color:var(--ink-soft);margin:-8px 0 14px;">🖨️ Print list opens your browser's print dialog — save as a PDF or print directly. Handy for showing community momentum at a meeting, or keeping a dated record of what's currently active.</p>
     ${list.length ? cards : (currentSearch.trim() || currentCategoryFilter ? `<div class="empty"><h3>No matching discussions</h3><p>Try a different search term or category, or clear the filters to see everything.</p></div>` : `<div class="empty"><h3>No discussions yet</h3><p>Be the first to raise something the town should be talking about.</p></div>`)}
   `;
 }
@@ -1320,6 +1321,7 @@ function renderThread(id){
         <button class="report-btn" data-delete-topic="${t.id}">🗑️ Delete</button>
         <button class="print-btn" title="Opens your browser's print dialog — save as PDF or print. Useful for bringing a dated copy of this discussion to a Selectboard meeting, or keeping your own record of it.">🖨️ Print</button>
       </div>
+      <p style="font-size:11px;color:var(--ink-soft);margin:8px 0 0;">🖨️ Print opens your browser's print dialog — save as a PDF or print directly. Handy for bringing a dated copy of this discussion to a Selectboard meeting, or keeping your own record of it.</p>
       <div style="margin-top:12px;"><span class="pulse-label">Momentum</span> ${pulseSVG(score)}</div>
     </div>
   `;
@@ -1573,6 +1575,7 @@ function renderDigest(){
       </select>
       <button class="print-btn" title="Opens your browser's print dialog — save as PDF or print. Useful for showing officials the full picture of community sentiment at a glance.">🖨️ Print summary</button>
     </div>
+    <p style="font-size:11px;color:var(--ink-soft);margin:-8px 0 14px;">🖨️ Print summary opens your browser's print dialog — save as a PDF or print directly. Handy for giving officials the full picture of community sentiment at a glance.</p>
     ${rows}
   `;
 }
