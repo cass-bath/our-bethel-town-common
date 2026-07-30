@@ -1107,14 +1107,14 @@ function seedTopics(){
   return [
     {
       id:'t1', title:'Anyone interested in a book club?',
-      body:'Been wanting to start a casual monthly book club, nothing fancy — just neighbors, some snacks, and a chance to talk about something other than the weather. Would anyone actually show up?',
+      body:'Been wanting to start a casual monthly book club, nothing fancy — just neighbors, some snacks, and a chance to talk about something other than the weather. Would anyone show up?',
       category:'General', author_type:'resident', author_name:'A neighbor',
       contact_email:'neighbor@example.com', flags:0, hidden:false,
       reactions:{support:0,concern:0,idea:0}, replies:[]
     },
     {
-      id:'t2', title:'Rec Committee: what would actually get your family through the door?',
-      body:"Posting on behalf of the Recreation Committee (and cross-posting for the Equity & Inclusion Committee, since accessibility is part of this too). We're looking at program times, scholarship/fee-waiver awareness, and transportation as barriers before we finalize next season's schedule. If cost, timing, transportation, or accessibility have ever kept your family from using the rec center or joining a program, we want to hear about it specifically — not just \"more programs,\" but what's actually stood in the way.",
+      id:'t2', title:'Rec Committee: what would get your family through the door?',
+      body:"Posting on behalf of the Recreation Committee (and cross-posting for the Equity & Inclusion Committee, since accessibility is part of this too). We're looking at program times, scholarship/fee-waiver awareness, and transportation as barriers before we finalize next season's schedule. If cost, timing, transportation, or accessibility have ever kept your family from using the rec center or joining a program, we want to hear about it specifically — not just \"more programs,\" but what's stood in the way.",
       category:'Recreation', author_type:'resident', author_name:'Rec Committee',
       contact_email:'neighbor2@example.com', flags:0, hidden:false,
       reactions:{support:0,concern:0,idea:0}, replies:[]
@@ -1124,6 +1124,21 @@ function seedTopics(){
       body:"I own about 40 acres outside the village, and I'm concerned about how Act 181's new \"road rule\" could affect rural parcels like mine. As I understand it, once the rule takes effect, building or extending a driveway past 800 feet (or a combined road/driveway over 2,000 feet) in a Tier 2 area can trigger a full Act 250 review — even if nothing else about the project would otherwise require one. Out here, a long driveway isn't unusual, it's just what you get with our terrain and lot sizes — it doesn't mean the land is being developed at any unusual scale. I'm worried this could mean real permitting cost and delay for ordinary things like building a single home site or helping a kid put a place on family land, not just big subdivisions. Has anyone looked into how this would actually apply to property around Bethel, and whether the town or regional planning commission has a way to weigh in on the mapping before Tier 3 designations are finalized?",
       category:'Land Use', author_type:'resident', author_name:'A rural landowner',
       contact_email:'neighbor3@example.com', flags:0, hidden:false,
+      reactions:{support:0,concern:0,idea:0}, replies:[]
+    },
+    {
+      id:'t4', title:'Equity & Inclusion Committee: help us make our neighborhood conversations work for you',
+      body:"We're organizing a series of neighborhood conversations this fall, staggered by hamlet so you can attend whichever session is easiest to get to. One thing we already know needs work: one of our venues isn't wheelchair accessible. If timing, location, or accessibility would keep you from attending, or if there's a topic around equity and inclusion in town you wish we'd address, tell us here.",
+      category:'Board Process & Transparency', author_type:'resident', author_name:'Equity & Inclusion Committee',
+      contact_email:'neighbor4@example.com', flags:0, hidden:false,
+      reactions:{support:0,concern:0,idea:0}, replies:[]
+    },
+    {
+      id:'t5', title:'Conservation Commission: would you attend a bird walk at Quimby Town Forest?',
+      body:"Audubon's Forest program is planning a public event comparing bird populations before and after last year's harvest at Quimby Town Forest, likely next spring. Would this be something you'd come out for?",
+      category:'Events', author_type:'resident', author_name:'Conservation Commission',
+      contact_email:'neighbor5@example.com', flags:0, hidden:false,
+      poll:{ question:'Conservation Commission: would you attend a bird walk at Quimby Town Forest?', options:['Yes, definitely','Maybe, depending on timing','Probably not'], counts:[0,0,0] },
       reactions:{support:0,concern:0,idea:0}, replies:[]
     }
   ];
