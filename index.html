@@ -407,6 +407,16 @@
 
 <div class="print-page-heading" id="printPageHeading">Bethel Town Common</div>
 <main class="shell" id="app"></main>
+<div id="profanityModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:#fff;max-width:420px;width:90%;margin:auto;border-radius:var(--radius, 8px);padding:20px;font-family:inherit;">
+    <p style="margin:0 0 10px;font-size:14px;">This looks like it might include language our filter flags.</p>
+    <p style="margin:0 0 14px;font-size:13px;"><button type="button" id="profanityModalAgreementsLink" style="background:none;border:none;padding:0;color:var(--pine, #2c5f4f);text-decoration:underline;cursor:pointer;font-size:13px;">Review the community agreements</button> to double-check your post before submitting.</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button type="button" class="report-btn" id="profanityModalCancel">Cancel</button>
+      <button type="button" class="btn-primary" id="profanityModalProceed">Post anyway</button>
+    </div>
+  </div>
+</div>
 <div class="print-disclaimer">Reactions, poll results, petition signatures, and reply/support counts shown here reflect informal, non-binding community engagement on Bethel Town Common — an independent, resident-run site. They are not an official vote, survey, or ballot, and carry no binding authority over any town, Selectboard, or School Board decision.</div>
 
 <script>
@@ -422,6 +432,7 @@ const CONFIG = {
   autoCloseMonths: 12,                   // discussions auto-close after this many months of no new replies
   maxPollOptions: 6,                     // max options a poll can have
   neighboringTowns: ["Royalton/SoRo","Stockbridge","Rochester","Randolph","Pittsfield","Barnard"], // nearby towns
+  bethelConnections: ["Former resident","Moved away","Has family in Bethel","Promoting a neighboring-town event","Other"], // shown to non-Bethel posters
   profanityWords: ["fuck","shit","bitch","asshole","bastard","dumbass","cunt","douchebag","slut","whore"], // soft warning list — edit freely, this is not exhaustive
   rulesUrl: "https://townofbethelvt.com/vertical/sites/%7B46C5C479-45BC-4485-9BD0-06530D0ACFB2%7D/uploads/Bethel_Selectboard_Rules_of_Procedure.docx",
   sectionFPdf: "data:application/pdf;base64,JVBERi0xLjQKJZOMi54gUmVwb3J0TGFiIEdlbmVyYXRlZCBQREYgZG9jdW1lbnQgKG9wZW5zb3VyY2UpCjEgMCBvYmoKPDwKL0YxIDIgMCBSIC9GMiAzIDAgUiAvRjMgNCAwIFIKPj4KZW5kb2JqCjIgMCBvYmoKPDwKL0Jhc2VGb250IC9IZWx2ZXRpY2EgL0VuY29kaW5nIC9XaW5BbnNpRW5jb2RpbmcgL05hbWUgL0YxIC9TdWJ0eXBlIC9UeXBlMSAvVHlwZSAvRm9udAo+PgplbmRvYmoKMyAwIG9iago8PAovQmFzZUZvbnQgL0hlbHZldGljYS1Cb2xkIC9FbmNvZGluZyAvV2luQW5zaUVuY29kaW5nIC9OYW1lIC9GMiAvU3VidHlwZSAvVHlwZTEgL1R5cGUgL0ZvbnQKPj4KZW5kb2JqCjQgMCBvYmoKPDwKL0Jhc2VGb250IC9IZWx2ZXRpY2EtT2JsaXF1ZSAvRW5jb2RpbmcgL1dpbkFuc2lFbmNvZGluZyAvTmFtZSAvRjMgL1N1YnR5cGUgL1R5cGUxIC9UeXBlIC9Gb250Cj4+CmVuZG9iago1IDAgb2JqCjw8Ci9Db250ZW50cyA5IDAgUiAvTWVkaWFCb3ggWyAwIDAgNjEyIDc5MiBdIC9QYXJlbnQgOCAwIFIgL1Jlc291cmNlcyA8PAovRm9udCAxIDAgUiAvUHJvY1NldCBbIC9QREYgL1RleHQgL0ltYWdlQiAvSW1hZ2VDIC9JbWFnZUkgXQo+PiAvUm90YXRlIDAgL1RyYW5zIDw8Cgo+PiAKICAvVHlwZSAvUGFnZQo+PgplbmRvYmoKNiAwIG9iago8PAovUGFnZU1vZGUgL1VzZU5vbmUgL1BhZ2VzIDggMCBSIC9UeXBlIC9DYXRhbG9nCj4+CmVuZG9iago3IDAgb2JqCjw8Ci9BdXRob3IgKFwoYW5vbnltb3VzXCkpIC9DcmVhdGlvbkRhdGUgKEQ6MjAyNjA3MjgxODM1NDArMDAnMDAnKSAvQ3JlYXRvciAoXCh1bnNwZWNpZmllZFwpKSAvS2V5d29yZHMgKCkgL01vZERhdGUgKEQ6MjAyNjA3MjgxODM1NDArMDAnMDAnKSAvUHJvZHVjZXIgKFJlcG9ydExhYiBQREYgTGlicmFyeSAtIFwob3BlbnNvdXJjZVwpKSAKICAvU3ViamVjdCAoXCh1bnNwZWNpZmllZFwpKSAvVGl0bGUgKFwoYW5vbnltb3VzXCkpIC9UcmFwcGVkIC9GYWxzZQo+PgplbmRvYmoKOCAwIG9iago8PAovQ291bnQgMSAvS2lkcyBbIDUgMCBSIF0gL1R5cGUgL1BhZ2VzCj4+CmVuZG9iago5IDAgb2JqCjw8Ci9GaWx0ZXIgWyAvQVNDSUk4NURlY29kZSAvRmxhdGVEZWNvZGUgXSAvTGVuZ3RoIDE4ODAKPj4Kc3RyZWFtCkdhdTBDPyRHOWQmOk1tLlFxK1Q/O0pbSjtoNT4pX2ooLUpiVWcpUU5dRWhfbCZtOTZkKWpbKXBwdGgtRSInSDg3P15uQT1BOiQuU2tLWSlCNnBwbEByXE1aUD9JLmw2RzdkN3VjJ0stKCNAajNQVXBvcyVocDglZGpFKkFLaUZAaG0sZkJLKllJaT0mP0ImLShHVj1dR1IlZVoxJ0cma2xuJE9edTtVWzlzYkc4QkZpRFRNVUJqJE8nZFooU2k5SWhKdGQvOHBkNU9iZz9qNnNoMGtIZTx0bz9pPD9AKT8tUml1YlByTG5aJnIvODZlcTA/Lio4TjtQbkZMWEYoZCJIVFBWcDAvX0g/SUVbMTpaNTtPLlZuOCg5PWgpPD1zXDg4PmNBQCQkYm9IblovMixHTCQxOyJHcHVcZyxbQFhQLi1gJiJHaGg5VixdOjc6Nyk+TC8yTignPT5fYHU/cVtVXz4qTE9sJlkhXChZKm1KbTJdKHUkbGE2UDdlXGJuTSdeOk0laFM2cGRBZ3U2KCczZjJhLSl1dU1ZITYtVUA5bks+XCVENk9ST0RxTkI6Xk5JXVhYVEk+PCtiNlVNS0k9YVZFNURjbVZhTjZEcl91JDRySVFfY2RrX2txQldEJEZOKmMqJ2wwTGMnNCxUIzhNJDRaVjkiNE9VOUkqPFptOy4oZXMyTHRqYzJyK25sdE5tIURCc1lhQzdHRUBCNVBIOzNualxKZ0hbUyM5L1MsbFlgPSVnWzppPT1jbjQ8bSxVXFBHWlU6R3M3KSs/JmhHN1VoP24wO09yUC1dbjhvOWlqN0BiaktYYSlNQUs/UzMuOl8haFRJOXQnSDw+QTcpMT9ySlxhZSYrKCNDdU1WQ0dILS9cOEZsNUE8Ryo+JUE4OEFeWmZxVkklLi5dZVFXRWA/YlMpN2Y6WmZtU2RbUlZaaWAraW0nVTFmI0YkKHFmQ3Q3XSxCS1hmU0Q5aFZkJyFGJik6cC8oQyNeZm4jRSwlNiota1IiaTY+Jm5Gb1A/RUhGcT9vV0JdS19wZDpyMCdbOU8zOThmLFIsSCRZYWpjOzI7Zy9zQyNbQGRoIVdNR3ErRkhtcCokSkJMUlBNaXRTR0AnLig8Wi9PaUhKUlkjZT5lNWFJYCs2Q1RASXE2YyguKkxQPUNeaEdlPms9cFozLTRrXlE9Nl1GOWhmbSVbREF0RDxYRUA0QVZlWS5bQVxNbl00QVwtUzNGY0ZJL0sjdXFzMCNdc2RoXEYkJ0Y5a1VwVDhJKCopOGwtMV91a05XKixFaWEjL3BVZU9rWTNvKjhPKy01PDVialBNVyJPVFZsOF4nOE1zRzleS3AjNT9PKExPSl1JJC5UN2ZrUUFgRCtqYy0oNEVaUVRxPylgZj9Ubz4iIlpSUDc9IT8rWlNhbWguZTNxITQ4TWpJV3BCOFlWUFEwaS8lL2RnaSRGYHIkWjdyVSRIWFJvZyFsRz0mRTJrXEpwMGBWR0llRGRmOUkpR1g6aGA9JytJYjZjSj41MDosI0VbNTJIK2QvJUIsP3VlPyo/LWdOWzZGdEJtLCwqJSZfISZdKCJldGdjTXMhKy9wYTRhdDd1cSMoZ1tDOGchUXJAPSwqQWdTPkAtNUhhXnEvb0pVSEdIRFdlUj91MzIrOzEuUTBGSFZgUS9PZnAiLjFYXGkqbi1wbWhUMS5jN1hmWmM9T2xLR0k+JDAsTmsnTE9DXDMzUS9FNXNObTgvQ08vdGRkMnRaZzM8XSM2MFppamY0LkdzKiJSZmYrZyVpOSJjQyRtam1LYStlZj4tNzJDajJuQU5JKltELFAsNjNKOCpVMS9NTEFFMHBgbW9rIk9CTTZHVWdLYnA6X3FkP0BXUzhncT0+cicpWSUyUTJZVS08aD4jaHBdOmZLS0wzYD8xW0cvMDsnVydxVzs6Mm49alJkISlvQkhtMyUpTWJvXT1PLk5pL2VlaXJjLT06PzsuL1FVZEIwNk0qWmloZGdDMUM3WzA7QGgjOmJtZWJtQ1wmYFYlX2subFIxUGssOitPXCptR2sucE9wTVUrP0Y5X182LUNSUzJFIXUwdT5mX3RlTFZtJVo7MEBVKnM2b2JWXHJXcldTWlNEQjhuJFBlS0tsV2ksbStsKyR1Qz1ibUwmNTZlYlNaYzh0WGVRXVhGSXBLcmhLb0E5UiI2ZFBGa2tLKC5Yak1WQXNFO0pgcXJkdCghSzhOVGE0M3A3VnBKNU9xRVA5W1suX2tgb2xIWk4zc2BEVj5OV0xldUUkZ2dXSCw3KVQ6W0omOSlmKz1HY1VIOHNMQDQyV0tYcUxuJVhTSV9LWVVObyZVQFlBUTtVJCVRXCVTaU1LMExIMmdGMThSPTAvcDhrYCpDMlBocjslJWM+WnQwRiMxblBnMVBvXFFBRChMYSVCRE89bi5uTCYmRjFvR2FTbGIxZF9caHRrOFwuLiZla1RqMVZwTjxcbjRERTUxMV9rR1RdNEE1Z0lyPDV0OGsiUH4+ZW5kc3RyZWFtCmVuZG9iagp4cmVmCjAgMTAKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDYxIDAwMDAwIG4gCjAwMDAwMDAxMTIgMDAwMDAgbiAKMDAwMDAwMDIxOSAwMDAwMCBuIAowMDAwMDAwMzMxIDAwMDAwIG4gCjAwMDAwMDA0NDYgMDAwMDAgbiAKMDAwMDAwMDYzOSAwMDAwMCBuIAowMDAwMDAwNzA3IDAwMDAwIG4gCjAwMDAwMDA5ODcgMDAwMDAgbiAKMDAwMDAwMTA0NiAwMDAwMCBuIAp0cmFpbGVyCjw8Ci9JRCAKWzxiMjI0ZjY3NGZhOTRiOTM3OTQ1Nzg5NGUzYzVhMWFlYT48YjIyNGY2NzRmYTk0YjkzNzk0NTc4OTRlM2M1YTFhZWE+XQolIFJlcG9ydExhYiBnZW5lcmF0ZWQgUERGIGRvY3VtZW50IC0tIGRpZ2VzdCAob3BlbnNvdXJjZSkKCi9JbmZvIDcgMCBSCi9Sb290IDYgMCBSCi9TaXplIDEwCj4+CnN0YXJ0eHJlZgozMDE3CiUlRU9GCg==",
@@ -826,7 +837,7 @@ const AGREEMENT_ITEMS = [
   { id:'topic', label:'Stay on topic', detail:'Comments should be addressed to the topic or to the community as a whole, not aimed at any individual person.' },
   { id:'violation', label:'What counts as a violation', detail:"A violation of these agreements includes personal, impertinent, threatening, or profane remarks, or content aimed at an individual rather than the topic at hand. Harassment or threats aren't tolerated." },
   { id:'reporting', label:'Reporting', detail:'Anyone reading this forum — not just those posting — can report a violation they see. It takes 3 separate reports, not just one person, before a post is pulled from public view and escalated for a moderator to review.' },
-  { id:'consequences', label:'Consequences', detail:'If your content is removed for a violation, that alone will not necessarily stop you from posting again — but a second removal will block your email from posting further. The moderator may act on a single flagrant violation immediately and at their own discretion — removing the content and/or blocking the email — without waiting for reports to accumulate first.' },
+  { id:'consequences', label:'Consequences', detail:'If your content is removed for a violation, that alone will not necessarily stop you from posting again — but a second removal will block your email from posting further. The moderator may act on a single flagrant violation immediately and at their own discretion — removing the content and/or blocking the email — without waiting for reports to accumulate first. A copy of exactly what you posted, plus the moderator\'s stated reason for removing it, is kept on file — you can request a copy of that record at any time.' },
   { id:'privacy', label:'Privacy', detail:'Posting here is anonymous by design — choose any display name you like so you can give honest opinions. A private email is required to post, but it is never shown publicly. It is only seen by a moderator if a post is flagged and escalated for review. <strong>The one exception is petitions:</strong> starting or signing a petition is not anonymous — organizers and signers are identified by their real printed name, since that\'s how petitions work in practice and what gives them credibility.' }
 ];
 let compactReminderOpen = false;
@@ -1196,6 +1207,24 @@ function timeAgo(ts){
 function escapeHtml(str){
   const d = document.createElement('div'); d.textContent = str; return d.innerHTML;
 }
+// Lightweight markdown-style formatting for post/reply bodies: **bold**, *italic*, [text](url), line breaks.
+// Escapes HTML first so this never introduces raw markup — safe to render with innerHTML.
+function parseMarkdownLite(str){
+  let out = escapeHtml(str || '');
+  out = out.replace(/\[([^\]\[]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  out = out.replace(/\*\*([^\*]+)\*\*/g, '<strong>$1</strong>');
+  out = out.replace(/\*([^\*]+)\*/g, '<em>$1</em>');
+  out = out.replace(/\n/g, '<br>');
+  return out;
+}
+function mdToolbarHtml(targetId){
+  return `<div class="md-toolbar" style="display:flex;gap:6px;margin:4px 0 6px;">
+    <button type="button" class="report-btn" data-md-wrap="${targetId}" data-md-before="**" data-md-after="**" title="Bold"><strong>B</strong></button>
+    <button type="button" class="report-btn" data-md-wrap="${targetId}" data-md-before="*" data-md-after="*" title="Italic"><em>I</em></button>
+    <button type="button" class="report-btn" data-md-link="${targetId}" title="Insert link">🔗 Link</button>
+  </div>
+  <p style="font-size:11px;color:var(--ink-soft);margin:0 0 6px;">Formatting supported: **bold**, *italic*, and [link text](https://...)</p>`;
+}
 function uid(){ return 't'+Math.random().toString(36).slice(2,10); }
 
 function renderAgreements(compact){
@@ -1205,7 +1234,7 @@ function renderAgreements(compact){
     }
     return `
     <div class="agreements-panel compact">
-      <strong>A reminder before you post:</strong> as adapted from Section F of the <a href="#" data-open-section-f="1">Select Board's public comment rules</a>, comments must be addressed to the topic, not to individuals, and must not include personal, threatening, or profane remarks. Bethel Town Common also treats abusive or harassing language as a violation. Content that violates these agreements may be removed at a moderator's discretion. It takes 3 separate reports — not just one person — before a post is pulled from public view and escalated for review, but a moderator may also act immediately on a single flagrant violation without waiting for reports. A first removal will not necessarily stop you from posting again; a second removal will block your email from posting further. The moderator may block an email immediately after a single violation if it is deemed severe.
+      <strong>A reminder before you post:</strong> as adapted from Section F of the <a href="#" data-open-section-f="1">Select Board's public comment rules</a>, comments must be addressed to the topic, not to individuals, and must not include personal, threatening, or profane remarks. Bethel Town Common also treats abusive or harassing language as a violation. Content that violates these agreements may be removed at a moderator's discretion. It takes 3 separate reports — not just one person — before a post is pulled from public view and escalated for review, but a moderator may also act immediately on a single flagrant violation without waiting for reports. A first removal will not necessarily stop you from posting again; a second removal will block your email from posting further. The moderator may block an email immediately after a single violation if it is deemed severe. If your content is ever removed, a copy of exactly what you posted, plus the moderator's stated reason for removing it, is kept on file — you can request a copy of that record at any time.
       <div style="margin-top:8px;"><button class="agreements-collapse-btn" data-toggle-compact-agreements="1">Collapse</button></div>
     </div>`;
   }
@@ -1410,6 +1439,7 @@ function renderPetitionWidget(t, closed){
       <label style="font-size:12px;display:flex;align-items:center;gap:6px;margin-bottom:8px;">
         <input type="checkbox" id="petitionConfirmVoter"> I am a registered voter of Bethel, VT
       </label>
+      <p style="font-size:11px;color:var(--ink-soft);margin:-4px 0 8px;">Not registered yet but want your signature to count? You can still sign — just leave the box above unchecked — and <a href="https://olvr.vermont.gov/" target="_blank" rel="noopener">register to vote in Vermont</a> before the petition is submitted.</p>
       <label style="font-size:12px;display:flex;align-items:flex-start;gap:6px;margin-bottom:8px;">
         <input type="checkbox" id="petitionConfirmPublic" style="margin-top:2px;"> I understand my full name will be shown publicly on this petition for coordination purposes — I am not signing anonymously.
       </label>
@@ -1533,7 +1563,7 @@ function renderThread(id){
         ${r.hidden ? '<span class="badge official" style="background:var(--gold-soft);color:var(--gold-deep);">Hidden (moderator view)</span>' : ''}
         <span>· ${timeAgo(r.createdAt)}</span>
       </div>
-      <div class="reply-body">${escapeHtml(r.body)}</div>
+      <div class="reply-body">${t.is_petition ? escapeHtml(r.body) : parseMarkdownLite(r.body)}</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
         <button class="report-btn" data-report-reply="${realIndex}" data-id="${t.id}" ${flaggedMap[t.id+'_r'+realIndex]?'disabled':''}>🚩 ${flaggedMap[t.id+'_r'+realIndex] ? 'Reported' : 'Report'}</button>
         <button class="report-btn" data-edit-reply="${realIndex}" data-id="${t.id}">✏️ Edit</button>
@@ -1565,7 +1595,7 @@ function renderThread(id){
       </div>
       <h2>${escapeHtml(t.title)}</h2>
       <div class="byline mono">${escapeHtml(t.author_name)} · ${timeAgo(t.created_at)}</div>
-      <div class="thread-body">${escapeHtml(t.body)}</div>
+      <div class="thread-body">${t.is_petition ? escapeHtml(t.body) : parseMarkdownLite(t.body)}</div>
       ${t.is_petition ? renderPetitionWidget(t, closed) : t.poll ? renderPollWidget(t, closed) : `
       <div class="reaction-row">
         <button class="reaction-btn ${reactedMap[id+'_support']?'active':''}" data-react="support" data-id="${id}" ${closed?'disabled':''}>👍 Support (${t.reactions.support})</button>
@@ -1603,6 +1633,11 @@ function renderThread(id){
         <option value="__other__">Other town</option>
       </select>
       <input type="text" id="replyResidencyOther" placeholder="Which town?" style="width:100%;margin-bottom:8px;display:none;border:1px solid var(--line);border-radius:var(--radius);padding:8px 10px;font-family:inherit;font-size:13px;">
+      <select id="replyBethelConnection" style="width:100%;margin-bottom:8px;display:none;border:1px solid var(--line);border-radius:var(--radius);padding:8px 10px;font-family:inherit;font-size:13px;background:#fff;">
+        ${CONFIG.bethelConnections.map(c=>`<option value="${c}">${c}</option>`).join('')}
+      </select>
+      <input type="text" id="replyPurpose" placeholder="What's the purpose of your post?" style="width:100%;margin-bottom:8px;display:none;border:1px solid var(--line);border-radius:var(--radius);padding:8px 10px;font-family:inherit;font-size:13px;">
+      ${mdToolbarHtml('replyBody')}
       <textarea id="replyBody" placeholder="Add your perspective..."></textarea>
       <label style="font-size:12.5px;display:flex;align-items:center;gap:6px;margin-top:8px;">
         <input type="checkbox" id="replyDownloadCopy"> Download a copy of this reply for my records <span style="color:var(--ink-soft);">(a PDF saves automatically to your device's downloads — useful as proof of exactly what you wrote if this reply is ever flagged for review)</span>
@@ -1722,11 +1757,13 @@ function renderNewTopicForm(){
       </div>
       <div class="field">
         <label>More context <span style="text-transform:none;font-weight:400;">(optional)</span></label>
+        ${mdToolbarHtml('newBody')}
         <textarea id="newBody" placeholder="Give people enough background to vote thoughtfully."></textarea>
       </div>
       ` : `
       <div class="field">
         <label>${isPetition ? 'Explain the ask' : 'Details'} ${isPetition ? '<span style="text-transform:none;font-weight:400;">— this text prints at the top of the petition document</span>' : ''}</label>
+        ${isPetition ? '' : mdToolbarHtml('newBody')}
         <textarea id="newBody" placeholder="${isPetition ? 'Explain what you\'re asking for and why. This is the language that will appear on the printed petition.' : 'Give people enough context to weigh in with an informed opinion.'}"></textarea>
       </div>
       `}
@@ -1750,6 +1787,16 @@ function renderNewTopicForm(){
           <option value="__other__">Other town</option>
         </select>
         <input type="text" id="newResidencyOther" placeholder="Which town?" style="display:none;margin-top:6px;">
+      </div>
+      <div class="field" id="newBethelConnectionField" style="display:none;">
+        <label>Your connection to Bethel</label>
+        <select id="newBethelConnection">
+          ${CONFIG.bethelConnections.map(c=>`<option value="${c}">${c}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field" id="newPostPurposeField" style="display:none;">
+        <label>What's the purpose of your post?</label>
+        <input type="text" id="newPostPurpose" placeholder="A short line on why you're posting here">
       </div>
       <div class="field">
         <label>How long should this stay ${isPoll ? 'open for voting' : 'open'}?</label>
@@ -1986,6 +2033,31 @@ function renderModeration(){
    EVENT HANDLING
 ===================================================================== */
 function attachHandlers(){
+  document.querySelectorAll('[data-md-wrap]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const ta = document.getElementById(el.getAttribute('data-md-wrap'));
+      if(!ta) return;
+      const before = el.getAttribute('data-md-before'), after = el.getAttribute('data-md-after');
+      const start = ta.selectionStart, end = ta.selectionEnd;
+      const selected = ta.value.slice(start, end) || 'text';
+      ta.value = ta.value.slice(0, start) + before + selected + after + ta.value.slice(end);
+      ta.focus();
+      ta.setSelectionRange(start + before.length, start + before.length + selected.length);
+    });
+  });
+  document.querySelectorAll('[data-md-link]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const ta = document.getElementById(el.getAttribute('data-md-link'));
+      if(!ta) return;
+      const start = ta.selectionStart, end = ta.selectionEnd;
+      const selected = ta.value.slice(start, end) || 'link text';
+      const snippet = `[${selected}](https://)`;
+      ta.value = ta.value.slice(0, start) + snippet + ta.value.slice(end);
+      ta.focus();
+      const urlPos = start + selected.length + 3;
+      ta.setSelectionRange(urlPos, urlPos + 8);
+    });
+  });
   document.querySelectorAll('[data-choose-role]').forEach(el=>{
     el.addEventListener('click', ()=>{ chooseRole(el.getAttribute('data-choose-role')); });
   });
@@ -2196,10 +2268,16 @@ function attachHandlers(){
   const newResidencyEl = document.getElementById('newResidency');
   if(newResidencyEl) newResidencyEl.addEventListener('change', ()=>{
     document.getElementById('newResidencyOther').style.display = newResidencyEl.value === '__other__' ? 'block' : 'none';
+    const nonBethel = newResidencyEl.value !== 'Bethel';
+    document.getElementById('newBethelConnectionField').style.display = nonBethel ? 'block' : 'none';
+    document.getElementById('newPostPurposeField').style.display = nonBethel ? 'block' : 'none';
   });
   const replyResidencyEl = document.getElementById('replyResidency');
   if(replyResidencyEl) replyResidencyEl.addEventListener('change', ()=>{
     document.getElementById('replyResidencyOther').style.display = replyResidencyEl.value === '__other__' ? 'block' : 'none';
+    const nonBethel = replyResidencyEl.value !== 'Bethel';
+    document.getElementById('replyBethelConnection').style.display = nonBethel ? 'block' : 'none';
+    document.getElementById('replyPurpose').style.display = nonBethel ? 'block' : 'none';
   });
 
   const submitNew = document.getElementById('submitNewTopic');
@@ -2232,13 +2310,18 @@ function attachHandlers(){
       closesAt = new Date(dateVal + 'T23:59:59').toISOString();
     }
     if(containsProfanity(title+' '+body)){
-      if(!confirm('This looks like it might include language our filter flags. Post it anyway?')) return;
+      if(!await showProfanityModal()) return;
     }
     const wantsCopy = document.getElementById('newDownloadCopy').checked;
     const createdAt = new Date().toISOString();
     let residency = document.getElementById('newResidency').value;
     if(residency === '__other__'){
       residency = document.getElementById('newResidencyOther').value.trim() || 'Other';
+    }
+    let bethelConnection = null, postPurpose = null;
+    if(residency !== 'Bethel'){
+      bethelConnection = document.getElementById('newBethelConnection').value;
+      postPurpose = document.getElementById('newPostPurpose').value.trim() || null;
     }
     let petitionType = null, petitionMeetingDate = null, petitionRequestBallot = false;
     if(isPetitionSubmit){
@@ -2264,6 +2347,7 @@ function attachHandlers(){
         id: newId, title, body, category,
         author_type: 'resident', author_name: name, contact_email: email,
         flags: 0, hidden: false, closes_at: closesAt, poll: pollPayload, residency: residency,
+        bethel_connection: bethelConnection, post_purpose: postPurpose,
         is_petition: isPetitionSubmit,
         petition_type: petitionType, petition_meeting_date: petitionMeetingDate, petition_request_ballot: petitionRequestBallot,
         reactions:{support:0,concern:0,idea:0}, replies:[]
@@ -2293,7 +2377,7 @@ function attachHandlers(){
     if(!isValidEmail(email)){ alert('Please add a valid email — it stays private and is only used if this reply needs review.'); return; }
     if(isBlocked(email)){ alert('This email address is not able to post here right now. If you think this is a mistake, contact whoever moderates this site.'); return; }
     if(containsProfanity(body)){
-      if(!confirm('This looks like it might include language our filter flags. Post it anyway?')) return;
+      if(!await showProfanityModal()) return;
     }
     const wantsCopy = document.getElementById('replyDownloadCopy').checked;
     const replyCreatedAt = Date.now();
@@ -2301,7 +2385,12 @@ function attachHandlers(){
     if(replyResidency === '__other__'){
       replyResidency = document.getElementById('replyResidencyOther').value.trim() || 'Other';
     }
-    t.replies.push({ authorName:name, authorType:'resident', contactEmail: email, body, createdAt: replyCreatedAt, flags:0, hidden:false, residency: replyResidency });
+    let replyBethelConnection = null, replyPurposeVal = null;
+    if(replyResidency !== 'Bethel'){
+      replyBethelConnection = document.getElementById('replyBethelConnection').value;
+      replyPurposeVal = document.getElementById('replyPurpose').value.trim() || null;
+    }
+    t.replies.push({ authorName:name, authorType:'resident', contactEmail: email, body, createdAt: replyCreatedAt, flags:0, hidden:false, residency: replyResidency, bethelConnection: replyBethelConnection, postPurpose: replyPurposeVal });
     let saveFailed = false;
     try{ await updateTopic(t.id, {replies: t.replies}); }
     catch(e){ console.error(e); alert('Could not save that reply — check your connection.'); t.replies.pop(); saveFailed = true; }
@@ -2621,6 +2710,31 @@ function chooseRole(role){
 document.getElementById('changeRoleBtn').addEventListener('click', goToAbout);
 document.getElementById('townTitle').addEventListener('click', goToAbout);
 document.getElementById('aboutLink').addEventListener('click', goToAbout);
+
+// Profanity warning modal (replaces a plain confirm() so it can include a real link to the agreements)
+let profanityModalResolve = null;
+function showProfanityModal(){
+  document.getElementById('profanityModalOverlay').style.display = 'flex';
+  return new Promise(resolve=>{ profanityModalResolve = resolve; });
+}
+function closeProfanityModal(result){
+  document.getElementById('profanityModalOverlay').style.display = 'none';
+  if(profanityModalResolve) profanityModalResolve(result);
+  profanityModalResolve = null;
+}
+document.getElementById('profanityModalCancel').addEventListener('click', ()=>closeProfanityModal(false));
+document.getElementById('profanityModalProceed').addEventListener('click', ()=>closeProfanityModal(true));
+document.getElementById('profanityModalAgreementsLink').addEventListener('click', ()=>{
+  closeProfanityModal(false); // treat as cancel — let them re-check their post against the agreements before resubmitting
+  currentTab = 'home';
+  currentTopicId = null;
+  compactReminderOpen = false; // renderAgreements(false) on the home tab always shows the full text regardless
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+  const homeBtn = document.querySelector('nav.tabs button[data-tab="home"]');
+  if(homeBtn) homeBtn.classList.add('active');
+  render();
+  window.scrollTo(0,0);
+});
 
 /* =====================================================================
    INIT
