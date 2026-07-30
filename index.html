@@ -380,9 +380,12 @@
   <div class="masthead-watermark serif" id="watermarkText">Bethel Town Common</div>
   <div class="utility-bar">
     <div class="tag">Bethel, Vermont</div>
-    <div class="search-box">
-      <input type="text" id="searchInput" placeholder="Search discussions...">
-      <button id="searchBtn" aria-label="Search">🔎</button>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Search discussions...">
+        <button id="searchBtn" aria-label="Search">🔎</button>
+      </div>
+      <button id="moderateTabBtn" title="Moderator access" style="background:none;border:1px solid rgba(255,255,255,.28);color:var(--paper);opacity:.6;font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;padding:5px 9px;border-radius:2px;white-space:nowrap;">Moderate</button>
     </div>
   </div>
   <div class="masthead-inner">
@@ -399,7 +402,6 @@
   <nav class="tabs" id="navTabs">
     <button data-tab="home" class="active">Discussions</button>
     <button data-tab="digest">Discussion Summary</button>
-    <button data-tab="moderate" id="moderateTabBtn">Moderate</button>
   </nav>
 </header>
 
@@ -2292,17 +2294,24 @@ function attachHandlers(){
 document.querySelectorAll('nav.tabs button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     const tab = btn.getAttribute('data-tab');
-    if(tab === 'moderate' && !isModerator){
-      const pass = prompt('Moderator passphrase:');
-      if(pass !== CONFIG.moderatorPassphrase){ alert('That passphrase doesn\'t match.'); return; }
-      isModerator = true;
-    }
     document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     currentTab = tab;
     currentTopicId = null;
     render();
   });
+});
+const moderateBtn = document.getElementById('moderateTabBtn');
+if(moderateBtn) moderateBtn.addEventListener('click', ()=>{
+  if(!isModerator){
+    const pass = prompt('Moderator passphrase:');
+    if(pass !== CONFIG.moderatorPassphrase){ alert('That passphrase doesn\'t match.'); return; }
+    isModerator = true;
+  }
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+  currentTab = 'moderate';
+  currentTopicId = null;
+  render();
 });
 
 function updateViewerLabel(){
