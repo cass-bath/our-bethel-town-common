@@ -336,6 +336,7 @@
   }
   .print-btn:hover{border-color:var(--pine-light);color:var(--pine);}
   .print-disclaimer{ display:none; }
+  .print-page-heading{ display:none; }
 
   @media print{
     .masthead, nav.tabs, .toolbar, .back-link, .print-btn, .report-btn,
@@ -359,6 +360,17 @@
       border-top:1px solid #999; padding:6px 0 0;
       background:#fff;
     }
+    .print-page-heading{
+      display:block !important;
+      text-align:center;
+      font-family:'IM Fell English SC', Georgia, serif;
+      font-size:22px;
+      color:#3E5A73;
+      margin:0 0 14px;
+      padding-bottom:10px;
+      border-bottom:1.5px solid #C1602E;
+    }
+    .print-page-heading.hide-for-petition{ display:none !important; }
   }
 </style>
 </head>
@@ -391,6 +403,7 @@
   </nav>
 </header>
 
+<div class="print-page-heading" id="printPageHeading">Bethel Town Common</div>
 <main class="shell" id="app"></main>
 <div class="print-disclaimer">Reactions, poll results, petition signatures, and reply/support counts shown here reflect informal, non-binding community engagement on Bethel Town Common — an independent, resident-run site. They are not an official vote, survey, or ballot, and carry no binding authority over any town, Selectboard, or School Board decision.</div>
 
@@ -601,7 +614,8 @@ function generatePetitionPdf(topic, signers){
     const legal = petitionLegalText(topic);
 
     function drawRunningHeader(isFirstPage){
-      y = drawPdfHeading(doc);
+      y = 50; // no site heading here on purpose — this document is meant to be filed with the
+               // Town Clerk as the actual petition, and shouldn't carry website letterhead/branding
       doc.setFont('helvetica','bold'); doc.setFontSize(13);
       const titleLines = doc.splitTextToSize(legal.heading, maxWidth);
       doc.text(titleLines, marginX, y); y += titleLines.length*15 + 4;
@@ -1091,6 +1105,11 @@ function render(){
   const navTabs = document.getElementById('navTabs');
   const aboutLinkEl = document.getElementById('aboutLink');
   if(aboutLinkEl) aboutLinkEl.style.display = currentTab === 'about' ? 'none' : '';
+  const printHeadingEl = document.getElementById('printPageHeading');
+  if(printHeadingEl){
+    const openTopic = currentTopicId ? topics.find(x=>x.id===currentTopicId) : null;
+    printHeadingEl.classList.toggle('hide-for-petition', !!(openTopic && openTopic.is_petition));
+  }
   if(currentTab === 'about'){
     if(navTabs) navTabs.style.display = 'none';
     app.innerHTML = renderAbout();
