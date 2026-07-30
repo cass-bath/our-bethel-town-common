@@ -443,15 +443,33 @@ function openSectionFPdf(){
     window.open(url, '_blank');
   }catch(e){ console.error('could not open Section F PDF', e); alert('Could not open the document — try again.'); }
 }
+// Draws the shared page heading — "Bethel Town Common" centered and colored — at the top of any
+// generated PDF, with a thin divider underneath. Returns the y position to continue drawing from.
+// jsPDF only ships Helvetica/Times/Courier, so this uses Times-Bold as the closest built-in
+// approximation of the site's period display font rather than the exact custom webfont.
+function drawPdfHeading(doc){
+  const pageWidth = doc.internal.pageSize.getWidth();
+  let y = 46;
+  doc.setFont('times','bold'); doc.setFontSize(20);
+  doc.setTextColor(62,90,115); // matches --pine
+  doc.text(CONFIG.townName, pageWidth/2, y, { align:'center' });
+  y += 14;
+  doc.setDrawColor(193,96,46); // matches --gold
+  doc.setLineWidth(1.2);
+  doc.line(pageWidth/2 - 110, y, pageWidth/2 + 110, y);
+  doc.setTextColor(0,0,0);
+  return y + 28;
+}
+
 function downloadPostCopy({ title, category, authorName, authorType, createdAt, body, kind, parentTitle }){
   try{
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit:'pt', format:'letter' });
-    const marginX = 54; let y = 60;
+    const marginX = 54; let y = drawPdfHeading(doc);
     const pageHeight = doc.internal.pageSize.getHeight();
     const maxWidth = doc.internal.pageSize.getWidth() - marginX*2;
 
-    function ensureRoom(lines){ if(y + lines*14 > pageHeight - 50){ doc.addPage(); y = 60; } }
+    function ensureRoom(lines){ if(y + lines*14 > pageHeight - 50){ doc.addPage(); y = drawPdfHeading(doc); } }
 
     doc.setFont('helvetica','bold'); doc.setFontSize(15);
     const titleLines = doc.splitTextToSize(kind==='reply' ? `Reply on: ${parentTitle}` : title, maxWidth);
@@ -529,7 +547,7 @@ function generatePetitionReceiptPdf(topic, entry){
   try{
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit:'pt', format:'letter' });
-    const marginX = 54; let y = 60;
+    const marginX = 54; let y = drawPdfHeading(doc);
     const maxWidth = doc.internal.pageSize.getWidth() - marginX*2;
 
     doc.setFont('helvetica','bold'); doc.setFontSize(15);
@@ -583,6 +601,7 @@ function generatePetitionPdf(topic, signers){
     const legal = petitionLegalText(topic);
 
     function drawRunningHeader(isFirstPage){
+      y = drawPdfHeading(doc);
       doc.setFont('helvetica','bold'); doc.setFontSize(13);
       const titleLines = doc.splitTextToSize(legal.heading, maxWidth);
       doc.text(titleLines, marginX, y); y += titleLines.length*15 + 4;
