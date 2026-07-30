@@ -472,6 +472,89 @@ function petitionLegalText(topic){
   return { heading, intro, closing };
 }
 
+const PETITION_TYPE_LABELS = {
+  advisory_selectboard: 'Advisory article — to the Selectboard',
+  advisory_school: 'Advisory article — to the School Board',
+  binding_selectboard: 'Binding article — to the Selectboard',
+  binding_school: 'Binding article — to the School Board',
+  special_meeting: 'Request a Special Meeting'
+};
+
+// Generates a personal, timestamped PDF receipt of what someone submitted to a petition —
+// either a signature or a reply — combined with the petition's own details (category, type,
+// meeting/deadline date). This is a personal record only, not a legal document.
+function generatePetitionReceiptPdf(topic, entry){
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit:'pt', format:'letter' });
+    const marginX = 54; let y = 60;
+    const maxWidth = doc.internal.pageSize.getWidth() - marginX*2;
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(15);
+    const titleLines = doc.splitTextToSize('Petition Receipt: ' + topic.title, maxWidth);
+    doc.text(titleLines, marginX, y); y += titleLines.length*18 + 6;
+
+    doc.setFont('helvetica','normal'); doc.setFontSize(10.5);
+    const typeLabel = PETITION_TYPE_LABELS[topic.petition_type] || 'Petition';
+    const meetingDate = topic.petition_meeting_date ? new Date(topic.petition_meeting_date).toLocaleDateString() : 'Not specified';
+    [
+      `Petition type: ${typeLabel}`,
+      `Category: ${topic.category}`,
+      `Meeting date / deadline: ${meetingDate}`,
+      `Petition posted: ${new Date(topic.created_at).toLocaleString()}`
+    ].forEach(line=>{ doc.text(line, marginX, y); y += 15; });
+    y += 12;
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(11);
+    doc.text(entry.kind === 'signature' ? 'Your signature record:' : 'Your reply:', marginX, y); y += 18;
+
+    doc.setFont('helvetica','normal'); doc.setFontSize(10.5);
+    if(entry.kind === 'signature'){
+      doc.text(`Printed name: ${entry.name}`, marginX, y); y += 15;
+      doc.text(`Registered voter of ${CONFIG.legalTownName}: ${entry.confirmedVoter ? 'Yes (self-identified)' : 'No / not indicated'}`, marginX, y); y += 15;
+      doc.text(`Signed online: ${new Date(entry.timestamp).toLocaleString()}`, marginX, y); y += 15;
+    } else {
+      doc.text(`Name: ${entry.name}`, marginX, y); y += 15;
+      doc.text(`Posted online: ${new Date(entry.timestamp).toLocaleString()}`, marginX, y); y += 15;
+      y += 6;
+      const bodyLines = doc.splitTextToSize(entry.body, maxWidth);
+      doc.text(bodyLines, marginX, y); y += bodyLines.length*13 + 10;
+    }
+
+    y += 18;
+    doc.setFont('helvetica','italic'); doc.setFontSize(9); doc.setTextColor(90,90,84);
+    const footer = doc.splitTextToSize('This is your personal record of what you submitted online — it is not a legally valid petition signature. When the petition organizer asks for your ink-on-paper signature, verify that the paper copy matches exactly what is recorded here before you sign.', maxWidth);
+    doc.text(footer, marginX, y);
+
+    const slug = topic.title.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40).replace(/(^-|-$)/g,'');
+    doc.save(`petition-receipt-${entry.kind}-${slug || 'copy'}.pdf`);
+  }catch(e){ console.error('could not generate petition receipt PDF', e); }
+}
+
+// Emails the same receipt, via a Supabase Edge Function you deploy separately (same setup as
+// notify-new-reply — see prior setup notes). Fire-and-forget: if the function isn't deployed
+// yet, the PDF download above still happens fine, the person just won't also get an email.
+async function sendPetitionReceiptEmail(topic, email, entry){
+  try{
+    const res = await fetch(`${CONFIG.supabaseUrl}/functions/v1/send-petition-receipt`, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization': `Bearer ${CONFIG.supabaseKey}`, 'apikey': CONFIG.supabaseKey },
+      body: JSON.stringify({
+        to: email,
+        topicTitle: topic.title,
+        category: topic.category,
+        petitionType: PETITION_TYPE_LABELS[topic.petition_type] || 'Petition',
+        meetingDate: topic.petition_meeting_date,
+        siteName: CONFIG.townName,
+        entry
+      })
+    });
+    if(!res.ok) console.warn('send-petition-receipt function returned', res.status, '— email not sent. Has the Edge Function been deployed?');
+  }catch(e){
+    console.warn('Could not reach the send-petition-receipt function — email not sent.', e);
+  }
+}
+
 function generatePetitionPdf(topic, signers){
   try{
     const { jsPDF } = window.jspdf;
@@ -1122,6 +1205,7 @@ function renderPetitionWidget(t, closed){
         <input type="checkbox" id="petitionConfirmPublic" style="margin-top:2px;"> I understand my full name will be shown publicly on this petition for coordination purposes — I am not signing anonymously.
       </label>
       <p style="font-size:11px;color:var(--ink-soft);margin:0 0 8px;">Only your name is ever shown publicly. Your email and street address are never shown publicly — they're only visible to the petition's organizer, and only after entering their one-time passcode.</p>
+      <p style="font-size:11px;color:var(--ink-soft);margin:0 0 8px;">A copy of your addition to this petition will be sent to the email you provided. When the creator of the petition comes to get your ink-on-paper signature, be sure to verify that the copy you're signing matches the version you agreed to online.</p>
       <button class="btn-primary" data-sign-petition="${t.id}">Add my signature</button>
     </div>
   ` : `<p style="font-size:12.5px;color:var(--ink-soft);margin-top:8px;">${hasSignedLocally ? "You've already signed this petition." : closed ? 'This petition is closed to new signatures.' : viewerRole==='board' ? 'Viewing as Select Board Member — signatures shown for reference only.' : ''}</p>`;
@@ -1298,7 +1382,7 @@ function renderThread(id){
     <div class="reply-form">
       ${renderAgreements(true)}
       <input type="text" id="replyName" placeholder="${t.is_petition ? 'Your real name — replies on petitions are not anonymous' : "Your name (or 'Neighbor on Elm St')"}" style="width:100%;margin-bottom:8px;">
-      <input type="text" id="replyEmail" placeholder="Your email (kept private — only used if flagged for violating the community agreements)" style="width:100%;margin-bottom:8px;">
+      <input type="text" id="replyEmail" placeholder="${t.is_petition ? 'Your email (stays private — your name above is public, since replies on petitions are not anonymous)' : 'Your email (kept private — only used if flagged for violating the community agreements)'}" style="width:100%;margin-bottom:8px;">
       <select id="replyResidency" style="width:100%;margin-bottom:6px;border:1px solid var(--line);border-radius:var(--radius);padding:8px 10px;font-family:inherit;font-size:13px;background:#fff;">
         <option value="Bethel">Bethel resident</option>
         ${CONFIG.neighboringTowns.map(t=>`<option value="${t}">${t} resident</option>`).join('')}
@@ -1309,6 +1393,7 @@ function renderThread(id){
       <label style="font-size:12.5px;display:flex;align-items:center;gap:6px;margin-top:8px;">
         <input type="checkbox" id="replyDownloadCopy"> Download a copy of this reply for my records (useful if it's ever flagged)
       </label>
+      ${t.is_petition ? `<p style="font-size:11px;color:var(--ink-soft);margin-top:8px;margin-bottom:0;">A copy of your reply will be sent to the email you provided, since replies on petitions are not anonymous.</p>` : ''}
       <div class="row" style="justify-content:flex-end;">
         <button class="btn-primary" id="submitReply">Post reply</button>
       </div>
@@ -1440,7 +1525,7 @@ function renderNewTopicForm(){
         <input type="text" id="newName" placeholder="${isPetition ? 'Your real name, as it should appear publicly' : "How you'd like to appear"}">
       </div>
       <div class="field">
-        <label>Your email <span style="text-transform:none;font-weight:400;">— kept private, only used if a post is flagged for violating the community agreements</span></label>
+        <label>Your email <span style="text-transform:none;font-weight:400;">${isPetition ? '— stays private, never shown publicly. Note: unlike regular discussions, petitions are not anonymous — your printed name (not this email) is shown publicly as the organizer, and the same applies to anyone who replies here.' : '— kept private, only used if a post is flagged for violating the community agreements'}</span></label>
         <input type="text" id="newEmail" placeholder="you@example.com">
       </div>
       <div class="field">
@@ -1681,6 +1766,12 @@ function attachHandlers(){
         return;
       }
       signedPetitions[id] = true; saveSignedPetitions();
+      const t = topics.find(x=>x.id===id);
+      if(t){
+        const entry = { kind:'signature', name, confirmedVoter, timestamp:new Date().toISOString() };
+        generatePetitionReceiptPdf(t, entry);
+        sendPetitionReceiptEmail(t, email, entry);
+      }
       render();
     });
   });
@@ -1906,6 +1997,11 @@ function attachHandlers(){
     let saveFailed = false;
     try{ await updateTopic(t.id, {replies: t.replies}); }
     catch(e){ console.error(e); alert('Could not save that reply — check your connection.'); t.replies.pop(); saveFailed = true; }
+    if(!saveFailed && t.is_petition){
+      const entry = { kind:'reply', name, body, timestamp:replyCreatedAt };
+      generatePetitionReceiptPdf(t, entry);
+      sendPetitionReceiptEmail(t, email, entry);
+    }
     if(!saveFailed && t.notify_on_reply && t.contact_email && t.contact_email.trim().toLowerCase() !== email.toLowerCase()){
       sendReplyNotification(t, t.replies[t.replies.length-1]);
     }
