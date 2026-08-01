@@ -524,6 +524,65 @@ function downloadPostCopy({ title, category, authorName, authorType, createdAt, 
   }catch(e){ console.error('could not generate PDF copy', e); alert('Your post was saved, but the PDF copy could not be generated.'); }
 }
 
+// Archive PDF auto-generated whenever someone deletes their own discussion or reply,
+// so the conversation isn't lost with no record. Downloads automatically — no checkbox,
+// same reasoning as the moderator violation-record PDF: a safety net people forget to
+// opt into isn't much of a safety net.
+function generateDeletedDiscussionPdf(t){
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit:'pt', format:'letter' });
+    const marginX = 54; let y = drawPdfHeading(doc);
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const maxWidth = doc.internal.pageSize.getWidth() - marginX*2;
+
+    function ensureRoom(lines){ if(y + lines*14 > pageHeight - 50){ doc.addPage(); y = drawPdfHeading(doc); } }
+
+    doc.setFont('helvetica','italic'); doc.setFontSize(9); doc.setTextColor(140,58,42);
+    doc.text('DELETED DISCUSSION — automatic archive copy', marginX, y); y += 18;
+    doc.setTextColor(0,0,0);
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(15);
+    const titleLines = doc.splitTextToSize(t.title, maxWidth);
+    ensureRoom(titleLines.length); doc.text(titleLines, marginX, y); y += titleLines.length*18 + 4;
+
+    doc.setFont('helvetica','italic'); doc.setFontSize(10);
+    const meta = `${t.category} · ${t.author_name} · ${new Date(t.created_at).toLocaleString()}`;
+    doc.text(meta, marginX, y); y += 22;
+
+    doc.setFont('helvetica','normal'); doc.setFontSize(11);
+    const bodyLines = doc.splitTextToSize(t.body || '', maxWidth);
+    bodyLines.forEach(line=>{ ensureRoom(1); doc.text(line, marginX, y); y += 15; });
+    y += 10;
+
+    const replies = t.replies || [];
+    if(replies.length){
+      ensureRoom(2); y += 6;
+      doc.setFont('helvetica','bold'); doc.setFontSize(12);
+      doc.text(`Replies (${replies.length})`, marginX, y); y += 18;
+      replies.forEach(r=>{
+        ensureRoom(2);
+        doc.setFont('helvetica','italic'); doc.setFontSize(9.5); doc.setTextColor(90,90,84);
+        const replyMeta = `${r.authorName} · ${new Date(r.createdAt).toLocaleString()}`;
+        doc.text(replyMeta, marginX, y); y += 14;
+        doc.setTextColor(0,0,0);
+        doc.setFont('helvetica','normal'); doc.setFontSize(11);
+        const replyLines = doc.splitTextToSize(r.body || '', maxWidth);
+        replyLines.forEach(line=>{ ensureRoom(1); doc.text(line, marginX, y); y += 15; });
+        y += 12;
+      });
+    }
+
+    y += 10; ensureRoom(3);
+    doc.setFont('helvetica','italic'); doc.setFontSize(9); doc.setTextColor(90,90,84);
+    const footer = doc.splitTextToSize('This copy was generated automatically at the moment this discussion was deleted, so the conversation would not be lost with no record. It is not an official town document.', maxWidth);
+    doc.text(footer, marginX, y);
+
+    const slug = t.title.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40).replace(/(^-|-$)/g,'');
+    doc.save(`bethel-common-deleted-discussion-${slug || 'post'}.pdf`);
+  }catch(e){ console.error('could not generate deletion archive PDF', e); alert('The discussion was deleted, but an archive PDF could not be generated.'); }
+}
+
 // Builds the VT SOS-style heading + intro paragraph for a petition, based on its type.
 // Mirrors the Elections Division's sample advisory/binding petition language.
 function petitionLegalText(topic){
@@ -1469,6 +1528,9 @@ function renderPetitionWidget(t, closed){
     <div style="margin-top:14px;">
       <div class="agreements-panel compact">
         <strong>Reminder:</strong> signing here shows real support, but is not a legally valid petition signature under Vermont law (17 V.S.A. § 2642), which requires an original handwritten signature on paper. The organizer will need to collect actual signatures separately for anything filed with the Town Clerk.
+      </div>
+      <div class="agreements-panel compact" style="margin-top:8px;">
+        <strong>Not registered to vote?</strong> If you're a Bethel resident interested in signing a petition here but aren't registered, you can do so at the <a href="https://vote.vermont.gov/public/dashboard" target="_blank" rel="noopener">Vermont Secretary of State's voter dashboard</a>.
       </div>
       <div style="font-size:13px;margin:10px 0;"><strong>${signers.length}</strong> signature${signers.length===1?'':'s'} · <strong>${confirmedCount}</strong> self-identified as registered Bethel voters</div>
       <div style="max-height:220px;overflow-y:auto;border:1px solid var(--line);border-radius:var(--radius);padding:8px 10px;background:var(--card);">${signerRows}</div>
@@ -2525,6 +2587,7 @@ function attachHandlers(){
       if(!t) return;
       if(!ownerCheck(t.contact_email)){ alert("That email doesn't match what this was posted with."); return; }
       if(!confirm('Delete this discussion permanently? This cannot be undone.')) return;
+      generateDeletedDiscussionPdf(t);
       try{ await deleteTopic(id); }catch(e){ console.error(e); alert('Could not delete — check your connection.'); return; }
       currentTopicId = null; currentTab = 'home'; render();
     });
@@ -2564,6 +2627,8 @@ function attachHandlers(){
       if(!t || !t.replies[idx]) return;
       if(!ownerCheck(t.replies[idx].contactEmail)){ alert("That email doesn't match what this was posted with."); return; }
       if(!confirm('Delete this reply permanently? This cannot be undone.')) return;
+      const r = t.replies[idx];
+      downloadPostCopy({ title:t.title, parentTitle:t.title, category:t.category, authorName:r.authorName, createdAt:r.createdAt, body:r.body, kind:'reply' });
       t.replies.splice(idx,1);
       try{ await updateTopic(tid, {replies: t.replies}); }
       catch(e){ console.error(e); alert('Could not delete — check your connection.'); return; }
