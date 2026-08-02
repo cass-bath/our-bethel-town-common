@@ -153,6 +153,7 @@
   .badge.official{background:var(--gold-soft);color:var(--gold-deep);}
   .badge.neighbor{background:#DCE7EC;color:#2C4F5E;}
   .badge.closed{background:var(--paper-dim);color:var(--ink-soft);border:1px solid var(--line);}
+  .badge.example{background:#F3E3DE;color:#8C3A2A;border:1px dashed #8C3A2A;}
 
   .card h3{font-size:18px;margin-bottom:4px;}
   .card .snippet{color:var(--ink-soft);font-size:13.5px;margin-bottom:10px;
@@ -392,7 +393,6 @@
     <div>
       <h1 id="townTitle" style="cursor:pointer;" title="About Bethel Town Common">Bethel Town Common</h1>
       <div class="tag">Community conversation &amp; connection</div>
-      <button id="aboutLink" style="background:none;border:none;color:var(--gold-soft);font-size:11px;text-decoration:underline;padding:0;margin-top:4px;cursor:pointer;">About this page</button>
     </div>
     <div class="viewer-pill">
       <span id="viewerLabel">Viewing as Resident</span>
@@ -1181,35 +1181,93 @@ function seedTopics(){
       body:'Been wanting to start a casual monthly book club, nothing fancy — just neighbors, some snacks, and a chance to talk about something other than the weather. Would anyone show up?',
       category:'General', author_type:'resident', author_name:'A neighbor',
       contact_email:'neighbor@example.com', flags:0, hidden:false,
+      is_example:true,
       reactions:{support:0,concern:0,idea:0}, replies:[]
     },
     {
-      id:'t2', title:'Rec Committee: what would get your family through the door?',
-      body:"Posting on behalf of the Recreation Committee (and cross-posting for the Equity & Inclusion Committee, since accessibility is part of this too). We're looking at program times, scholarship/fee-waiver awareness, and transportation as barriers before we finalize next season's schedule. If cost, timing, transportation, or accessibility have ever kept your family from using the rec center or joining a program, we want to hear about it specifically — not just \"more programs,\" but what's stood in the way.",
+      id:'t2', title:'Rec Center pavilion is being sealed — please stay off until it\'s done',
+      body:'The Rec Center pavilion — all the bench seating, handrails, and posts up to the roof beams — is currently being sealed to prevent water damage. Everything is wet and sticky right now, with multiple coats of stain going on. There\'s caution tape across both entrances — please stay out, including kids and dogs, until it\'s fully cured. We\'ll post here again once it\'s open.',
       category:'Recreation', author_type:'resident', author_name:'Rec Committee',
       contact_email:'neighbor2@example.com', flags:0, hidden:false,
+      is_example:true,
       reactions:{support:0,concern:0,idea:0}, replies:[]
     },
     {
       id:'t3', title:'Act 181\'s road rule — anyone else worried about their driveway?',
-      body:"I own about 40 acres outside the village, and I'm concerned about how Act 181's new \"road rule\" could affect rural parcels like mine. As I understand it, once the rule takes effect, building or extending a driveway past 800 feet (or a combined road/driveway over 2,000 feet) in a Tier 2 area can trigger a full Act 250 review — even if nothing else about the project would otherwise require one. Out here, a long driveway isn't unusual, it's just what you get with our terrain and lot sizes — it doesn't mean the land is being developed at any unusual scale. I'm worried this could mean real permitting cost and delay for ordinary things like building a single home site or helping a kid put a place on family land, not just big subdivisions. Has anyone looked into how this would actually apply to property around Bethel, and whether the town or regional planning commission has a way to weigh in on the mapping before Tier 3 designations are finalized?",
+      body:'I own about 40 acres outside the village, and I\'m concerned about how Act 181\'s new "road rule" could affect rural parcels like mine. As I understand it, once the rule takes effect, building or extending a driveway past 800 feet (or a combined road/driveway over 2,000 feet) in a Tier 2 area can trigger a full Act 250 review — even if nothing else about the project would otherwise require one. Out here, a long driveway isn\'t unusual, it\'s just what you get with our terrain and lot sizes — it doesn\'t mean the land is being developed at any unusual scale. I\'m worried this could mean real permitting cost and delay for ordinary things like building a single home site or helping a kid put a place on family land, not just big subdivisions. Has anyone looked into how this would actually apply to property around Bethel, and whether the town or regional planning commission has a way to weigh in on the mapping before Tier 3 designations are finalized?',
       category:'Land Use', author_type:'resident', author_name:'A rural landowner',
       contact_email:'neighbor3@example.com', flags:0, hidden:false,
+      is_example:true,
       reactions:{support:0,concern:0,idea:0}, replies:[]
     },
     {
-      id:'t4', title:'Equity & Inclusion Committee: help us make our neighborhood conversations work for you',
-      body:"We're organizing a series of neighborhood conversations this fall, staggered by hamlet so you can attend whichever session is easiest to get to. One thing we already know needs work: one of our venues isn't wheelchair accessible. If timing, location, or accessibility would keep you from attending, or if there's a topic around equity and inclusion in town you wish we'd address, tell us here.",
+      id:'t4', title:'EIC: help us plan the next Neighborhood Conversation',
+      body:'Last fall, Neighborhood Conversations hosted a potluck at the White Church marking a year of these gatherings — about 50 people came out. We\'re starting to plan the next one and want it to work for as many people as possible: what time of day, what location, and what format would make it easiest for you to attend?',
       category:'Board Process & Transparency', author_type:'resident', author_name:'Equity & Inclusion Committee',
       contact_email:'neighbor4@example.com', flags:0, hidden:false,
+      is_example:true,
       reactions:{support:0,concern:0,idea:0}, replies:[]
     },
     {
-      id:'t5', title:'Conservation Commission: would you attend a bird walk at Quimby Town Forest?',
-      body:"Audubon's Forest program is planning a public event comparing bird populations before and after last year's harvest at Quimby Town Forest, likely next spring. Would this be something you'd come out for?",
+      id:'t5', title:'Conservation Commission: would you come out for a birding walk at Carla\'s Meadow?',
+      body:'Carla\'s Meadow along the White River is known for great birding and wildlife — we\'re kicking around the idea of organizing a guided birding walk there some weekend this spring. Would this be something you\'d come out for?',
       category:'Events', author_type:'resident', author_name:'Conservation Commission',
       contact_email:'neighbor5@example.com', flags:0, hidden:false,
-      poll:{ question:'Conservation Commission: would you attend a bird walk at Quimby Town Forest?', options:['Yes, definitely','Maybe, depending on timing','Probably not'], counts:[0,0,0] },
+      is_example:true,
+      poll:{ question:'Conservation Commission: would you come out for a birding walk at Carla\'s Meadow?', options:['Yes, definitely','Maybe, depending on timing','Probably not'], counts:[0,0,0] },
+      reactions:{support:0,concern:0,idea:0}, replies:[]
+    },
+    {
+      id:'t6', title:'Rec Committee: what would get your family through the door?',
+      body:'Posting on behalf of the Recreation Committee (and cross-posting for the Equity & Inclusion Committee, since accessibility is part of this too). We\'re looking at program times, scholarship/fee-waiver awareness, and transportation as barriers before we finalize next season\'s schedule. If cost, timing, transportation, or accessibility have ever kept your family from using the rec center or joining a program, we want to hear about it specifically — not just "more programs," but what\'s stood in the way.',
+      category:'Recreation', author_type:'resident', author_name:'Rec Committee',
+      contact_email:'neighbor6@example.com', flags:0, hidden:false,
+      is_example:true,
+      reactions:{support:0,concern:0,idea:0}, replies:[]
+    },
+    {
+      id:'t7', title:'Rochester\'s free summer concert series is back — Sundays through August',
+      body:'Just wanted to flag this for anyone who doesn\'t already know — Rochester\'s Recreation Committee runs a free outdoor concert series most Sunday evenings through the summer, 6 to 8pm at the park on Route 100. Worth the drive over if you\'re looking for something to do on a summer evening.',
+      category:'Events', author_type:'resident', author_name:'A Rochester neighbor',
+      contact_email:'neighbor7@example.com', flags:0, hidden:false,
+      residency:'Rochester', bethel_connection:'Promoting a neighboring-town event',
+      post_purpose:'Letting Bethel folks know about Rochester\'s free summer concert series',
+      is_example:true,
+      reactions:{support:0,concern:0,idea:0}, replies:[]
+    },
+    {
+      id:'t8', title:'Explore adding a bike rack near Bandshell Common and the Recreation Center',
+      body:'A few of us have talked about wanting somewhere secure to lock up bikes near Bandshell Common and the Recreation Center, especially with more kids biking to games, the farmers market, and summer concerts. This petition simply asks the Selectboard to look into adding a bike rack when it fits the budget — nothing urgent, just something worth having on the radar.',
+      category:'Recreation', author_type:'resident', author_name:'A Bethel neighbor',
+      contact_email:'neighbor8@example.com', flags:0, hidden:false,
+      residency:'Bethel',
+      is_petition:true, petition_type:'advisory_selectboard', petition_meeting_date:null, petition_request_ballot:false,
+      is_example:true,
+      reactions:{support:0,concern:0,idea:0}, replies:[]
+    },
+    {
+      id:'t9', title:'Bethel Fire Department is looking for a few more volunteers',
+      body:'We\'re looking for motivated folks to join the department — 18 or older, valid driver\'s license, able to pass a background check. No firefighting experience needed; training and support are provided, including firefighter certification, EMS support, and hands-on drills. If you\'ve ever thought about it, stop by the station on a training night to meet the crew and learn more.',
+      category:'Public Safety', author_type:'resident', author_name:'Bethel Fire Department',
+      contact_email:'neighbor9@example.com', flags:0, hidden:false,
+      is_example:true,
+      reactions:{support:0,concern:0,idea:0}, replies:[]
+    },
+    {
+      id:'t10', title:'Vendor signups are open for the Bethel Community Forward Festival',
+      body:'Vendor spots are open for the Bethel Community Forward Festival on October 3rd, 10am to 3pm on the Common. It\'s $25 for a 12\'x12\' space if your application is in by September 21st ($35 after that for late entries). Craft, art, and food vendors are all welcome — reach out if you\'re interested.',
+      category:'Events', author_type:'resident', author_name:'Bethel Community Forward Festival Committee',
+      contact_email:'neighbor10@example.com', flags:0, hidden:false,
+      is_example:true,
+      reactions:{support:0,concern:0,idea:0}, replies:[]
+    },
+    {
+      id:'t11', title:'Favorite spot to cool off on the White River this summer?',
+      body:'Curious where everyone actually goes when it\'s hot out — one of the river access points, the Rec Center pool, or somewhere else entirely?',
+      category:'Recreation', author_type:'resident', author_name:'A neighbor',
+      contact_email:'neighbor11@example.com', flags:0, hidden:false,
+      is_example:true,
+      poll:{ question:'Favorite spot to cool off on the White River this summer?', options:['Peavine Park','River Street Access','The Rec Center pool','I stay dry, thanks'], counts:[0,0,0,0] },
       reactions:{support:0,concern:0,idea:0}, replies:[]
     }
   ];
@@ -1322,8 +1380,6 @@ function renderAgreements(compact){
 function render(){
   const app = document.getElementById('app');
   const navTabs = document.getElementById('navTabs');
-  const aboutLinkEl = document.getElementById('aboutLink');
-  if(aboutLinkEl) aboutLinkEl.style.display = currentTab === 'about' ? 'none' : '';
   const printHeadingEl = document.getElementById('printPageHeading');
   if(printHeadingEl){
     const openTopic = currentTopicId ? topics.find(x=>x.id===currentTopicId) : null;
@@ -1363,7 +1419,7 @@ const ABOUT_SLIDES = [
   {
     icon: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 16h30a6 6 0 0 1 6 6v14a6 6 0 0 1-6 6H26l-10 10V42h-6a6 6 0 0 1-6-6V22a6 6 0 0 1 6-6z" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><circle cx="20" cy="29" r="2" fill="currentColor"/><circle cx="29" cy="29" r="2" fill="currentColor"/><circle cx="38" cy="29" r="2" fill="currentColor"/></svg>`,
     title: 'Talk through what matters',
-    body: "Bethel Town Common is the same idea. A place for residents to talk through what matters to us most, from budgets to back roads. Vermonters have been known to have a healthy debate, but we're neighbors, friends, and family first. What we have in common far outweighs our differences, starting with our love for Bethel."
+    body: "Bethel Town Common is the same idea. A place for residents to talk through what matters to us most, from budgets to back roads. Vermonters have never needed to agree on everything to still show up for each other. What we have in common far outweighs our differences, starting with our love for Bethel."
   },
   {
     icon: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M32 8 L54 16 V30 C54 44 44 54 32 58 C20 54 10 44 10 30 V16 Z" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><line x1="32" y1="24" x2="32" y2="36" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="32" cy="44" r="1.8" fill="currentColor"/></svg>`,
@@ -1427,6 +1483,7 @@ function renderHome(){
         <span class="badge category">${escapeHtml(t.category)}</span>
         ${t.poll ? '<span class="badge official">🗳️ Poll</span>' : ''}
         ${t.is_petition ? '<span class="badge official">📋 Petition</span>' : ''}
+        ${t.is_example ? '<span class="badge example">🧪 Test only — example post</span>' : ''}
         ${t.residency && t.residency !== 'Bethel' ? `<span class="badge neighbor">🏘️ ${escapeHtml(t.residency)}</span>` : ''}
         ${isClosed(t) ? '<span class="badge closed">Closed</span>' : ''}
         ${viewerRole==='board' && isFlaggedForMeeting(t.id) ? '<span class="badge official">📌 Flagged (private)</span>' : ''}
@@ -1654,6 +1711,7 @@ function renderThread(id){
       <div class="badges">
         <span class="badge category">${escapeHtml(t.category)}</span>
         ${t.is_petition ? '<span class="badge official">📋 Petition</span>' : ''}
+        ${t.is_example ? '<span class="badge example">🧪 Test only — example post</span>' : ''}
         ${t.residency && t.residency !== 'Bethel' ? `<span class="badge neighbor">🏘️ ${escapeHtml(t.residency)}</span>` : ''}
         ${closed ? '<span class="badge closed">Closed</span>' : ''}
       </div>
@@ -2782,7 +2840,6 @@ function chooseRole(role){
 }
 document.getElementById('changeRoleBtn').addEventListener('click', goToAbout);
 document.getElementById('townTitle').addEventListener('click', goToAbout);
-document.getElementById('aboutLink').addEventListener('click', goToAbout);
 
 // Profanity warning modal (replaces a plain confirm() so it can include a real link to the agreements)
 let profanityModalResolve = null;
