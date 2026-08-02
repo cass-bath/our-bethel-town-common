@@ -1238,7 +1238,7 @@ function seedTopics(){
     {
       id:'t8', title:'Explore adding a bike rack near Bandshell Common and the Recreation Center',
       body:'A few of us have talked about wanting somewhere secure to lock up bikes near Bandshell Common and the Recreation Center, especially with more kids biking to games, the farmers market, and summer concerts. This petition simply asks the Selectboard to look into adding a bike rack when it fits the budget — nothing urgent, just something worth having on the radar.',
-      category:'Recreation', author_type:'resident', author_name:'A Bethel neighbor',
+      category:'Recreation', author_type:'resident', author_name:'Morgan Park',
       contact_email:'neighbor8@example.com', flags:0, hidden:false,
       residency:'Bethel',
       is_petition:true, petition_type:'advisory_selectboard', petition_meeting_date:null, petition_request_ballot:false,
@@ -1268,6 +1268,14 @@ function seedTopics(){
       contact_email:'neighbor11@example.com', flags:0, hidden:false,
       is_example:true,
       poll:{ question:'Favorite spot to cool off on the White River this summer?', options:['Peavine Park','River Street Access','The Rec Center pool','I stay dry, thanks'], counts:[0,0,0,0] },
+      reactions:{support:0,concern:0,idea:0}, replies:[]
+    },
+    {
+      id:'t12', title:'Pothole forming at the bottom of the bridge by Town Hall?',
+      body:"I noticed a new pothole forming at the bottom of the bridge by Town Hall, in case it's not already on the radar for the next patching round. I didn't want it to catch anyone off guard, especially on a bike.",
+      category:'Roads & Plowing', author_type:'resident', author_name:'A neighbor',
+      contact_email:'neighbor12@example.com', flags:0, hidden:false,
+      is_example:true,
       reactions:{support:0,concern:0,idea:0}, replies:[]
     }
   ];
@@ -1352,7 +1360,7 @@ function renderAgreements(compact){
     }
     return `
     <div class="agreements-panel compact">
-      <strong>A reminder before you post:</strong> as adapted from Section F of the <a href="#" data-open-section-f="1">Select Board's public comment rules</a>, comments must be addressed to the topic, not to individuals, and must not include personal, threatening, or profane remarks. Bethel Town Common also treats abusive or harassing language as a violation. Content that violates these agreements may be removed at a moderator's discretion. It takes 3 separate reports — not just one person — before a post is pulled from public view and escalated for review, but a moderator may also act immediately on a single flagrant violation without waiting for reports. A first removal will not necessarily stop you from posting again; a second removal will block your email from posting further. The moderator may block an email immediately after a single violation if it is deemed severe. If your content is ever removed, a copy of exactly what you posted, plus the moderator's stated reason for removing it, is kept on file — you can request a copy of that record at any time.
+      <strong>A reminder before you post:</strong> inspired by Section F of the <a href="#" data-open-section-f="1">Select Board's public comment rules</a>, comments must be addressed to the topic, not to individuals, and must not include personal, threatening, or profane remarks. Bethel Town Common also treats abusive or harassing language as a violation. Content that violates these agreements may be removed at a moderator's discretion. It takes 3 separate reports — not just one person — before a post is pulled from public view and escalated for review, but a moderator may also act immediately on a single flagrant violation without waiting for reports. A first removal will not necessarily stop you from posting again; a second removal will block your email from posting further. The moderator may block an email immediately after a single violation if it is deemed severe. If your content is ever removed, a copy of exactly what you posted, plus the moderator's stated reason for removing it, is kept on file — you can request a copy of that record at any time.
       <div style="margin-top:8px;"><button class="agreements-collapse-btn" data-toggle-compact-agreements="1">Collapse</button></div>
     </div>`;
   }
@@ -1369,7 +1377,7 @@ function renderAgreements(compact){
   return `
   <div class="agreements-panel">
     <h3 style="font-size:15px;margin-bottom:8px;">Community agreements</h3>
-    <p style="font-size:13px;margin:0 0 10px;">Given the expectations set for public comment at Select Board meetings, which you can <a href="#" data-open-section-f="1">review here (Section F, excerpted)</a>, the following expectations apply to any engagement and participation in this forum. <a href="${CONFIG.rulesUrl}" target="_blank" rel="noopener" style="font-size:12px;">(Full Rules of Procedure)</a></p>
+    <p style="font-size:13px;margin:0 0 10px;">Inspired by the Select Board's expectations for public comment — you can <a href="#" data-open-section-f="1">review them here (Section F, excerpted)</a> — we've adopted the following community agreements for this forum. <a href="${CONFIG.rulesUrl}" target="_blank" rel="noopener" style="font-size:12px;">(Full Rules of Procedure)</a></p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">${itemsHtml}</div>
   </div>`;
 }
@@ -1419,7 +1427,7 @@ const ABOUT_SLIDES = [
   {
     icon: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 16h30a6 6 0 0 1 6 6v14a6 6 0 0 1-6 6H26l-10 10V42h-6a6 6 0 0 1-6-6V22a6 6 0 0 1 6-6z" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><circle cx="20" cy="29" r="2" fill="currentColor"/><circle cx="29" cy="29" r="2" fill="currentColor"/><circle cx="38" cy="29" r="2" fill="currentColor"/></svg>`,
     title: 'Talk through what matters',
-    body: "Bethel Town Common is the same idea. A place for residents to talk through what matters to us most, from budgets to back roads. Vermonters have never needed to agree on everything to still show up for each other. What we have in common far outweighs our differences, starting with our love for Bethel."
+    body: "Bethel Town Common is the same idea. A place for residents to talk through what matters to us most, from budgets, to belonging, to back roads, to businesses. Vermonters have never needed to agree on everything to still show up for each other. What we have in common far outweighs our differences, starting with our love for Bethel."
   },
   {
     icon: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M32 8 L54 16 V30 C54 44 44 54 32 58 C20 54 10 44 10 30 V16 Z" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><line x1="32" y1="24" x2="32" y2="36" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="32" cy="44" r="1.8" fill="currentColor"/></svg>`,
@@ -1429,7 +1437,7 @@ const ABOUT_SLIDES = [
   {
     icon: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="20" cy="24" r="7" stroke="currentColor" stroke-width="3"/><circle cx="44" cy="24" r="7" stroke="currentColor" stroke-width="3"/><path d="M8 50c0-8 5.4-14 12-14s12 6 12 14" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M32 50c0-8 5.4-14 12-14s12 6 12 14" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>`,
     title: 'More than town business',
-    body: "This isn't only for town business, either. Bethel Town Common is just as much a place to build community — start a thread if you're looking for others who share a hobby, want to get a book club going, try and plan a themed community meal, or just want the town's honest opinion on which internet provider or mechanic to use. Building community is exactly what a common is for."
+    body: "Bethel Town Common is as much a place to build community as it is to talk through town business — start a thread if you're looking for others who share a hobby, want to get a book club going, weigh in on a paving budget, or just want the town's honest opinion on which internet provider or mechanic to use. Building community is exactly what a common is for."
   }
 ];
 
@@ -1507,7 +1515,7 @@ function renderHome(){
   }).join('');
 
   return `
-    <p style="font-size:13px;color:var(--ink-soft);margin:0 0 14px;">A reminder: this is an independent, resident-run site, not affiliated with the Town of Bethel — nothing posted here reaches Town Management or the Select Board automatically. If you want to make sure your voice actually gets there, here's how: email <a href="https://townofbethelvt.com/town-manager" target="_blank" rel="noopener">Town Management</a> or a <a href="https://townofbethelvt.com/selectboard" target="_blank" rel="noopener">Select Board member</a> directly, stop by the <a href="https://www.townofbethelvt.com" target="_blank" rel="noopener">Town Office</a> in person, or attend a Select Board meeting — held every 2nd and 4th Monday at 6 PM at <a href="https://www.google.com/maps/dir/?api=1&destination=318+Main+St%2C+Bethel%2C+VT+05032" target="_blank" rel="noopener">Bethel Town Hall (get directions)</a>. There's plenty of on-site parking, with an accessible entrance in the rear, and time set aside for public comment.</p>
+    <p style="font-size:13px;color:var(--ink-soft);margin:0 0 14px;">A reminder: this is an independent, resident-run site, not affiliated with the Town of Bethel — nothing posted here necessarily reaches Town Management or the Select Board. Other ways to formally participate in town business: email <a href="https://townofbethelvt.com/town-manager" target="_blank" rel="noopener">Town Management</a> or a <a href="https://townofbethelvt.com/selectboard" target="_blank" rel="noopener">Select Board member</a> directly, stop by the <a href="https://www.townofbethelvt.com" target="_blank" rel="noopener">Town Office</a> in person, or attend a Select Board meeting — held every 2nd and 4th Monday at 6 PM at <a href="https://www.google.com/maps/dir/?api=1&destination=318+Main+St%2C+Bethel%2C+VT+05032" target="_blank" rel="noopener">Bethel Town Hall (get directions)</a>. There's plenty of on-site parking, with an accessible entrance in the rear, and time set aside for public comment.</p>
     ${renderAgreements(false)}
     <div class="toolbar">
       <div class="sort-group" style="align-items:center;">
@@ -1997,7 +2005,7 @@ function renderDigest(){
 
   return `
     <div class="digest-note">
-      Sorted by momentum — reactions, replies, and poll votes combined. If something here matters to you, this is the data worth referencing: how many people supported or raised concerns, how many responded, how a poll came out. Read as few or as many replies as you have time for.
+      Sorted by momentum — reactions, replies, and poll votes combined, so it's easy to see what's getting the most attention right now. Read as few or as many replies as you have time for.
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
       <select id="digestCategoryFilter" style="border:1px solid var(--line);border-radius:20px;padding:5px 10px;font-size:12.5px;color:var(--ink-soft);font-family:inherit;background:var(--card);">
