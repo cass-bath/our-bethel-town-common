@@ -723,7 +723,7 @@ function generatePetitionReceiptPdf(topic, entry){
 
     doc.setFont('helvetica','normal'); doc.setFontSize(10.5);
     if(entry.kind === 'signature'){
-      doc.text(`Printed name: ${entry.name}`, marginX, y); y += 15;
+      doc.text(`Legal name: ${entry.name}`, marginX, y); y += 15;
       doc.text(`Registered voter of ${CONFIG.legalTownName}: ${entry.confirmedVoter ? 'Yes (self-identified)' : 'No / not indicated'}`, marginX, y); y += 15;
       doc.text(`Signed online: ${new Date(entry.timestamp).toLocaleString()}`, marginX, y); y += 15;
     } else {
@@ -800,7 +800,7 @@ function generatePetitionPdf(topic, signers){
       // table header
       doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
       doc.text('#', marginX, y);
-      doc.text('Printed Name', marginX+24, y);
+      doc.text('Legal Name', marginX+24, y);
       doc.text('Street Address', marginX+190, y);
       doc.text('Date', marginX+360, y);
       doc.text('Signature', marginX+415, y);
@@ -898,7 +898,7 @@ const AGREEMENT_ITEMS = [
   { id:'violation', label:'What counts as a violation', detail:"A violation of these agreements includes personal, impertinent, threatening, or profane remarks, or content aimed at an individual rather than the topic at hand. Harassment or threats aren't tolerated." },
   { id:'reporting', label:'Reporting', detail:'Anyone reading this forum — not just those posting — can report a violation they see. It takes 3 separate reports, not just one person, before a post is pulled from public view and escalated for a moderator to review.' },
   { id:'consequences', label:'Consequences', detail:'If your content is removed for a violation, that alone will not necessarily stop you from posting again — but a second removal will block your email from posting further. The moderator may act on a single flagrant violation immediately and at their own discretion — removing the content and/or blocking the email — without waiting for reports to accumulate first. A copy of exactly what you posted, plus the moderator\'s stated reason for removing it, is kept on file — you can request a copy of that record at any time.' },
-  { id:'privacy', label:'Privacy', detail:'Posting here is anonymous by design — choose any display name you like so you can give honest opinions. A private email is required to post, but it is never shown publicly. It is only seen by a moderator if a post is flagged and escalated for review. <strong>The one exception is petitions:</strong> starting or signing a petition is not anonymous — organizers and signers are identified by their legal printed name, since that\'s how petitions work in practice and what gives them credibility.' }
+  { id:'privacy', label:'Privacy', detail:'Posting here is anonymous by design — choose any display name you like so you can give honest opinions. A private email is required to post, but it is never shown publicly. It is only seen by a moderator if a post is flagged and escalated for review. <strong>The one exception is petitions:</strong> starting or signing a petition is not anonymous — organizers and signers are identified by their legal name, since that\'s how petitions work in practice and what gives them credibility.' }
 ];
 let compactReminderOpen = false;
 function saveVotedPolls(){ localStorage.setItem('tc-voted-polls', JSON.stringify(votedPolls)); }
@@ -1558,7 +1558,7 @@ function renderPetitionWidget(t, closed){
 
   const signForm = canSign ? `
     <div class="petition-sign-form" style="margin-top:14px;">
-      <input type="text" id="petitionSignName" placeholder="Your printed name" style="width:100%;margin-bottom:8px;border:1px solid var(--line);border-radius:var(--radius);padding:8px 10px;font-family:inherit;font-size:13px;">
+      <input type="text" id="petitionSignName" placeholder="Your legal name" style="width:100%;margin-bottom:8px;border:1px solid var(--line);border-radius:var(--radius);padding:8px 10px;font-family:inherit;font-size:13px;">
       <input type="text" id="petitionSignEmail" placeholder="Your email" style="width:100%;margin-bottom:8px;border:1px solid var(--line);border-radius:var(--radius);padding:8px 10px;font-family:inherit;font-size:13px;">
       <input type="text" id="petitionSignAddress" placeholder="Street address" style="width:100%;margin-bottom:8px;border:1px solid var(--line);border-radius:var(--radius);padding:8px 10px;font-family:inherit;font-size:13px;">
       <label style="font-size:12px;display:flex;align-items:center;gap:6px;margin-bottom:8px;">
@@ -1825,13 +1825,13 @@ function renderNewTopicForm(){
       ${renderAgreements(true)}
       ${isPetition ? `
       <div class="agreements-panel compact">
-        <strong>Before you start a petition:</strong> this tool organizes supporters and generates a printable document — it does not collect legally valid signatures. Vermont law (17 V.S.A. § 2642) requires an actual handwritten signature from each registered voter, on paper, filed with the Town Clerk. Use this to find and count your supporters; the wet-ink signing still has to happen separately. <strong>Unlike regular discussions, petitions are not anonymous</strong> — your legal printed name will be shown publicly as the organizer, the same way it would be on a paper petition.
+        <strong>Before you start a petition:</strong> this tool organizes supporters and generates a printable document — it does not collect legally valid signatures. Vermont law (17 V.S.A. § 2642) requires an actual handwritten signature from each registered voter, on paper, filed with the Town Clerk. Use this to find and count your supporters; the wet-ink signing still has to happen separately. <strong>Unlike regular discussions, petitions are not anonymous</strong> — your legal name will be shown publicly as the organizer, the same way it would be on a paper petition.
       </div>
       <div class="agreements-panel" style="margin-top:10px;">
         <strong style="display:block;margin-bottom:6px;">Vermont petition rules, at a glance</strong>
         <p style="margin:0 0 8px;"><strong>Petitions for Annual Meeting</strong> — must contain signatures of 5% of the town's voters and be received by the Selectboard or School Board at least 47 days before Town Meeting Day. <span class="mono">17 V.S.A. § 2642(a)(3)(A)</span>. Most boards post the full warning about 40 days out, so it's courteous — and best practice — to file with the Town Clerk before the last board meeting that falls before that 40‑day mark. Call the Town Clerk to confirm timing.</p>
         <p style="margin:0 0 8px;"><strong>Petitions for a Special Meeting</strong> — may be filed with the Town Clerk at any time and also require signatures of 5% of the town's voters. <span class="mono">17 V.S.A. § 2643(a)</span>. Once the clerk finds it conforms, a special meeting must be warned within 60 days of the petition's receipt.</p>
-        <p style="margin:0;"><strong>Rules for all petitions</strong> — the petition language must appear on every page where signatures are collected <span class="mono">§2642(a)(3)(C)(ii)</span>; each signer's printed name, signature, and street address are required <span class="mono">§2642(a)(3)(C)(iii)</span>; and a single petition may contain more than one proposed article <span class="mono">§2642(a)(3)(C)(i)</span>.</p>
+        <p style="margin:0;"><strong>Rules for all petitions</strong> — the petition language must appear on every page where signatures are collected <span class="mono">§2642(a)(3)(C)(ii)</span>; each signer's legal name, signature, and street address are required <span class="mono">§2642(a)(3)(C)(iii)</span>; and a single petition may contain more than one proposed article <span class="mono">§2642(a)(3)(C)(i)</span>.</p>
       </div>
       <div class="agreements-panel" style="margin-top:10px;">
         <strong style="display:block;margin-bottom:6px;">Which petition type is right for this?</strong>
@@ -1903,11 +1903,11 @@ function renderNewTopicForm(){
         <select id="newCategory">${opts}</select>
       </div>
       <div class="field">
-        <label>${isPetition ? 'Your printed name' : 'Your name'} ${isPetition ? '<span style="text-transform:none;font-weight:400;">— shown publicly as the organizer, not anonymous</span>' : ''}</label>
+        <label>${isPetition ? 'Your legal name' : 'Your name'} ${isPetition ? '<span style="text-transform:none;font-weight:400;">— shown publicly as the organizer, not anonymous</span>' : ''}</label>
         <input type="text" id="newName" placeholder="${isPetition ? 'Your legal name, as it should appear publicly' : "How you'd like to appear"}">
       </div>
       <div class="field">
-        <label>Your email <span style="text-transform:none;font-weight:400;">${isPetition ? '— stays private, never shown publicly. Note: unlike regular discussions, petitions are not anonymous — your printed name (not this email) is shown publicly as the organizer, and the same applies to anyone who replies here.' : '— kept private, only used if a post is flagged for violating the community agreements'}</span></label>
+        <label>Your email <span style="text-transform:none;font-weight:400;">${isPetition ? '— stays private, never shown publicly. Note: unlike regular discussions, petitions are not anonymous — your legal name (not this email) is shown publicly as the organizer, and the same applies to anyone who replies here.' : '— kept private, only used if a post is flagged for violating the community agreements'}</span></label>
         <input type="text" id="newEmail" placeholder="you@example.com">
       </div>
       ${!isPetition ? `
@@ -2269,7 +2269,7 @@ function attachHandlers(){
       const address = document.getElementById('petitionSignAddress').value.trim();
       const confirmedVoter = document.getElementById('petitionConfirmVoter').checked;
       const confirmedPublic = document.getElementById('petitionConfirmPublic').checked;
-      if(!name){ alert('Please add your printed name.'); return; }
+      if(!name){ alert('Please add your legal name.'); return; }
       if(!isValidEmail(email)){ alert('Enter a valid email — it stays private and is only visible to the organizer.'); return; }
       if(!address){ alert('Please add a street address — this is required for a petition and is never shown publicly.'); return; }
       if(!confirmedPublic){ alert('Please check the box confirming you understand your name will be shown publicly before signing.'); return; }
