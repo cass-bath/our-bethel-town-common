@@ -2169,13 +2169,13 @@ function renderModeratorActionForm(){
           <input type="checkbox" id="modBlockImmediately"> Also block this email immediately <span style="color:var(--ink-soft);">(bypasses the normal 2-strike rule — use for a severe, flagrant violation)</span>
         </label>
       </div>` : ''}
-      ${a.email ? `
+      ${isBlock && a.email ? `
       <div class="field">
         <label style="font-size:12.5px;text-transform:none;font-weight:400;display:flex;align-items:center;gap:6px;">
           <input type="checkbox" id="modSendEmail"> Also open my email app to notify this person <span style="color:var(--ink-soft);">(optional — the action and PDF record are kept either way, so you're never required to send anything)</span>
         </label>
       </div>` : ''}
-      <p style="font-size:11.5px;color:var(--ink-soft);margin:0 0 14px;">Confirming will download a PDF record of this content and your decision, and ${isBlock ? 'block the email' : 'permanently delete the content'}. This record is kept on file regardless of whether you choose to notify the person, so you have it later if they ask what was removed and why.</p>
+      <p style="font-size:11.5px;color:var(--ink-soft);margin:0 0 14px;">${isBlock ? 'Confirming will download a PDF record of this content and your decision, and block the email. This record is kept on file regardless of whether you choose to notify the person, so you have it later if they ask what was removed and why.' : `Confirming will permanently delete the content${a.email ? ' and automatically email a copy of the record to the person it was posted by' : ''} — no manual step needed on your end.`}</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="new-topic-btn" id="modActionConfirm">${isBlock ? 'Confirm block' : 'Confirm delete'}</button>
         <button class="report-btn" id="modActionCancel">Cancel</button>
@@ -2542,7 +2542,7 @@ function attachHandlers(){
       if(!dateVal){ alert('Pick a closing date, or switch to "Open indefinitely".'); return; }
       closesAt = new Date(dateVal + 'T23:59:59').toISOString();
     }
-    if(containsProfanity(title+' '+body)){
+    if(containsProfanity(title+' '+body+' '+name)){
       if(!await showProfanityModal()) return;
     }
     const wantsCopy = document.getElementById('newDownloadCopy').checked;
@@ -2611,7 +2611,7 @@ function attachHandlers(){
     if(!body) return;
     if(!isValidEmail(email)){ alert('Please add a valid email — it stays private and is only used if this reply needs review.'); return; }
     if(isBlocked(email)){ alert('This email address is not able to post here right now. If you think this is a mistake, contact whoever moderates this site.'); return; }
-    if(containsProfanity(body)){
+    if(containsProfanity(body+' '+name)){
       if(!await showProfanityModal()) return;
     }
     const wantsCopy = document.getElementById('replyDownloadCopy').checked;
