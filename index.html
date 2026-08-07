@@ -955,7 +955,7 @@ const AGREEMENT_ITEMS = [
   { id:'violation', label:'What counts as a violation', detail:"A violation of these agreements includes personal, impertinent, threatening, or profane remarks, or content aimed at an individual rather than the topic at hand. Harassment or threats aren't tolerated." },
   { id:'reporting', label:'Reporting', detail:'Anyone reading this forum — not just those posting — can report a violation they see. It takes 3 separate reports, not just one person, before a post is pulled from public view and escalated for a moderator to review.' },
   { id:'consequences', label:'Consequences', detail:'If your content is removed for a violation, that alone will not necessarily stop you from posting again — but a second removal will block your email from posting further. The moderator may act on a single flagrant violation immediately and at their own discretion — removing the content and/or blocking the email — without waiting for reports to accumulate first. A copy of exactly what you posted, plus the moderator\'s stated reason for removing it, is kept on file — you can request a copy of that record at any time.' },
-  { id:'privacy', label:'Privacy', detail:'Posting here is anonymous by design — choose any display name you like so you can give honest opinions. A private email is required to post, but it is never shown publicly. It is only seen by a moderator if a post is flagged and escalated for review. <strong>The one exception is petitions:</strong> starting or signing a petition is not anonymous — organizers and signers are identified by their legal name, since that\'s how petitions work in practice and what gives them credibility.' }
+  { id:'privacy', label:'Privacy', detail:'Posting here is anonymous by design — choose any display name you like so you can give honest opinions. A private email is required to post, but it is never shown publicly. It is only seen by a moderator if a post is flagged and escalated for review. It\'s also used to send you a copy if you ever delete your own post or reply — that\'s an automated copy for your records, not a moderator seeing it. <strong>The one exception is petitions:</strong> starting or signing a petition is not anonymous — organizers and signers are identified by their legal name, since that\'s how petitions work in practice and what gives them credibility.' }
 ];
 let compactReminderOpen = false;
 function saveVotedPolls(){ localStorage.setItem('tc-voted-polls', JSON.stringify(votedPolls)); }
@@ -1843,7 +1843,7 @@ function renderThread(id){
     <div class="reply-form">
       ${renderAgreements(true)}
       <input type="text" id="replyName" placeholder="${t.is_petition ? 'Your legal name — replies on petitions are not anonymous' : "Your name (or 'Neighbor on Elm St')"}" style="width:100%;margin-bottom:8px;">
-      <input type="text" id="replyEmail" placeholder="${t.is_petition ? 'Your email (stays private — your name above is public, since replies on petitions are not anonymous)' : 'Your email (kept private — only used if flagged for violating the community agreements)'}" style="width:100%;margin-bottom:8px;">
+      <input type="text" id="replyEmail" placeholder="${t.is_petition ? 'Your email (stays private — your name above is public, since replies on petitions are not anonymous)' : 'Your email (kept private — only used if flagged for violating the community agreements, or to send you a copy if you delete this reply)'}" style="width:100%;margin-bottom:8px;">
       <select id="replyResidency" style="width:100%;margin-bottom:6px;border:1px solid var(--line);border-radius:var(--radius);padding:8px 10px;font-family:inherit;font-size:13px;background:#fff;">
         <option value="Bethel">Bethel resident</option>
         ${CONFIG.neighboringTowns.map(t=>`<option value="${t}">${t} resident</option>`).join('')}
@@ -1993,7 +1993,7 @@ function renderNewTopicForm(){
         <input type="text" id="newName" placeholder="${isPetition ? 'Your legal name, as it should appear publicly' : "How you'd like to appear"}">
       </div>
       <div class="field">
-        <label>Your email <span style="text-transform:none;font-weight:400;">${isPetition ? '— stays private, never shown publicly. Note: unlike regular discussions, petitions are not anonymous — your legal name (not this email) is shown publicly as the organizer, and the same applies to anyone who replies here.' : '— kept private, only used if a post is flagged for violating the community agreements'}</span></label>
+        <label>Your email <span style="text-transform:none;font-weight:400;">${isPetition ? '— stays private, never shown publicly. Note: unlike regular discussions, petitions are not anonymous — your legal name (not this email) is shown publicly as the organizer, and the same applies to anyone who replies here.' : '— kept private, only used if a post is flagged for violating the community agreements, or to send you a copy if you delete it'}</span></label>
         <input type="text" id="newEmail" placeholder="you@example.com">
       </div>
       ${!isPetition ? `
