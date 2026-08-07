@@ -488,6 +488,23 @@ function openSectionFPdf(){
 // generated PDF, with a thin divider underneath. Returns the y position to continue drawing from.
 // jsPDF only ships Helvetica/Times/Courier, so this uses Times-Bold as the closest built-in
 // approximation of the site's period display font rather than the exact custom webfont.
+// Sends a PDF as an email attachment through the site's Edge Function, instead of a local download.
+// Returns true/false so callers can decide whether to warn the user if it failed.
+async function sendPdfEmail(doc, toEmail, subject, htmlBody, filename){
+  if(!toEmail) return false;
+  try{
+    const dataUri = doc.output('datauristring');
+    const base64 = dataUri.split(',')[1];
+    const res = await fetch(`${CONFIG.supabaseUrl}/functions/v1/send-email`, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'apikey': CONFIG.supabaseKey, 'Authorization': `Bearer ${CONFIG.supabaseKey}` },
+      body: JSON.stringify({ to: toEmail, subject, html: htmlBody, attachmentBase64: base64, attachmentFilename: filename })
+    });
+    if(!res.ok) throw new Error('email send failed: '+res.status);
+    return true;
+  }catch(e){ console.error('could not send PDF email', e); return false; }
+}
+
 function drawPdfHeading(doc){
   const pageWidth = doc.internal.pageSize.getWidth();
   let y = 46;
@@ -502,7 +519,7 @@ function drawPdfHeading(doc){
   return y + 28;
 }
 
-function downloadPostCopy({ title, category, authorName, authorType, createdAt, body, kind, parentTitle }){
+async function downloadPostCopy({ title, category, authorName, authorType, createdAt, body, kind, parentTitle, emailTo }){
   try{
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit:'pt', format:'letter' });
@@ -535,7 +552,17 @@ function downloadPostCopy({ title, category, authorName, authorType, createdAt, 
     doc.text(footer, marginX, y);
 
     const slug = (kind==='reply' ? parentTitle : title).toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40).replace(/(^-|-$)/g,'');
-    doc.save(`bethel-common-${kind}-copy-${slug || 'post'}.pdf`);
+    if(emailTo){
+      const sent = await sendPdfEmail(
+        doc, emailTo,
+        `Your deleted reply on: ${parentTitle}`,
+        `<p>You deleted your reply on "${escapeHtml(parentTitle)}" on Bethel Town Common. A copy is attached for your records.</p>`,
+        `bethel-common-${kind}-copy-${slug || 'post'}.pdf`
+      );
+      if(!sent) alert('The reply was deleted, but the email copy could not be sent — check your connection.');
+    } else {
+      doc.save(`bethel-common-${kind}-copy-${slug || 'post'}.pdf`);
+    }
   }catch(e){ console.error('could not generate PDF copy', e); alert('Your post was saved, but the PDF copy could not be generated.'); }
 }
 
@@ -543,7 +570,7 @@ function downloadPostCopy({ title, category, authorName, authorType, createdAt, 
 // so the conversation isn't lost with no record. Downloads automatically — no checkbox,
 // same reasoning as the moderator violation-record PDF: a safety net people forget to
 // opt into isn't much of a safety net.
-function generateDeletedDiscussionPdf(t){
+async function generateDeletedDiscussionPdf(t){
   try{
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit:'pt', format:'letter' });
@@ -594,7 +621,13 @@ function generateDeletedDiscussionPdf(t){
     doc.text(footer, marginX, y);
 
     const slug = t.title.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40).replace(/(^-|-$)/g,'');
-    doc.save(`bethel-common-deleted-discussion-${slug || 'post'}.pdf`);
+    const sent = await sendPdfEmail(
+      doc, t.contact_email,
+      `Your deleted post: ${t.title}`,
+      `<p>You deleted your post "${escapeHtml(t.title)}" on Bethel Town Common. A copy of the full discussion, including any replies, is attached for your records.</p>`,
+      `bethel-common-deleted-discussion-${slug || 'post'}.pdf`
+    );
+    if(!sent) alert('The discussion was deleted, but the email copy could not be sent — check your connection.');
   }catch(e){ console.error('could not generate deletion archive PDF', e); alert('The discussion was deleted, but an archive PDF could not be generated.'); }
 }
 
@@ -646,7 +679,7 @@ const PETITION_TYPE_LABELS = {
 // Generates a PDF record of a moderator's deletion or block action: the content at time of
 // removal, the author/email, the violation type and comments picked in the moderator form, and
 // blank ruled lines for a written explanation or response.
-function generateViolationRecordPdf({ contextTitle, content, authorName, email, violationType, actionBasisLabel, violationNumber, comments, actionLabel }){
+async function generateViolationRecordPdf({ contextTitle, content, authorName, email, violationType, actionBasisLabel, violationNumber, comments, actionLabel }){
   try{
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit:'pt', format:'letter' });
@@ -697,7 +730,17 @@ function generateViolationRecordPdf({ contextTitle, content, authorName, email, 
     }
 
     const slug = (contextTitle||'record').toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40).replace(/(^-|-$)/g,'');
-    doc.save(`bethel-common-moderation-${slug || 'record'}.pdf`);
+    if(actionLabel === 'Content deleted' && email){
+      const sent = await sendPdfEmail(
+        doc, email,
+        'Your post was removed from Bethel Town Common',
+        `<p>A post or reply of yours was removed by a moderator${contextTitle ? ' from "' + escapeHtml(contextTitle) + '"' : ''}. The attached record explains the basis for that decision. If you think this was made in error, you're welcome to leave a message using the Contact form on the site.</p>`,
+        `bethel-common-moderation-${slug || 'record'}.pdf`
+      );
+      if(!sent) doc.save(`bethel-common-moderation-${slug || 'record'}.pdf`); // fall back to a local copy if the email failed, so the record isn't lost
+    } else {
+      doc.save(`bethel-common-moderation-${slug || 'record'}.pdf`);
+    }
   }catch(e){ console.error('could not generate violation record PDF', e); alert('Could not generate the record PDF.'); }
 }
 
@@ -1141,6 +1184,27 @@ async function loadViolations(){
     rows.forEach(r=>{ violations[r.email] = { count: r.count, history: r.history || [] }; });
   }catch(e){ console.error('email_violations load error', e); }
 }
+function generateContactMessagePdf(m){
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit:'pt', format:'letter' });
+    const marginX = 54; let y = drawPdfHeading(doc);
+    const maxWidth = doc.internal.pageSize.getWidth() - marginX*2;
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(14);
+    doc.text('Contact form message', marginX, y); y += 22;
+
+    doc.setFont('helvetica','italic'); doc.setFontSize(10);
+    doc.text(`${m.reply_email ? 'Reply to: ' + m.reply_email : 'No reply requested'} · ${new Date(m.created_at).toLocaleString()}`, marginX, y); y += 24;
+
+    doc.setFont('helvetica','normal'); doc.setFontSize(11);
+    const lines = doc.splitTextToSize(m.message, maxWidth);
+    lines.forEach(line=>{ doc.text(line, marginX, y); y += 15; });
+
+    doc.save(`bethel-common-message-${new Date(m.created_at).toISOString().slice(0,10)}.pdf`);
+  }catch(e){ console.error('could not generate message PDF', e); alert('Could not generate the PDF.'); }
+}
+
 async function loadContactMessages(){
   try{
     const res = await fetch(sbUrl('contact_messages?select=*&order=created_at.desc'), { headers: SB_HEADERS });
@@ -2170,6 +2234,7 @@ function renderModeration(){
       <p style="font-size:13.5px;margin:0 0 6px;white-space:pre-wrap;">${escapeHtml(m.message)}</p>
       <p style="font-size:12px;color:var(--ink-soft);">${m.reply_email ? `Reply to: ${escapeHtml(m.reply_email)}` : 'No reply requested'} · ${timeAgo(m.created_at)}</p>
       <div class="row" style="display:flex;gap:8px;margin-top:8px;">
+        <button class="report-btn" data-mod-pdf-contact-message="${m.id}">📄 Download PDF</button>
         <button class="report-btn" data-mod-delete-contact-message="${m.id}">Mark read &amp; delete</button>
       </div>
     </div>
@@ -2693,7 +2758,7 @@ function attachHandlers(){
       if(!t) return;
       if(!ownerCheck(t.contact_email)){ alert("That email doesn't match what this was posted with."); return; }
       if(!confirm('Delete this discussion permanently? This cannot be undone.')) return;
-      generateDeletedDiscussionPdf(t);
+      await generateDeletedDiscussionPdf(t);
       try{ await deleteTopic(id); }catch(e){ console.error(e); alert('Could not delete — check your connection.'); return; }
       currentTopicId = null; currentTab = 'home'; render();
     });
@@ -2734,7 +2799,7 @@ function attachHandlers(){
       if(!ownerCheck(t.replies[idx].contactEmail)){ alert("That email doesn't match what this was posted with."); return; }
       if(!confirm('Delete this reply permanently? This cannot be undone.')) return;
       const r = t.replies[idx];
-      downloadPostCopy({ title:t.title, parentTitle:t.title, category:t.category, authorName:r.authorName, createdAt:r.createdAt, body:r.body, kind:'reply' });
+      await downloadPostCopy({ title:t.title, parentTitle:t.title, category:t.category, authorName:r.authorName, createdAt:r.createdAt, body:r.body, kind:'reply', emailTo:r.contactEmail });
       t.replies.splice(idx,1);
       try{ await updateTopic(tid, {replies: t.replies}); }
       catch(e){ console.error(e); alert('Could not delete — check your connection.'); return; }
@@ -2776,6 +2841,14 @@ function attachHandlers(){
     });
   });
 
+  document.querySelectorAll('[data-mod-pdf-contact-message]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const id = el.getAttribute('data-mod-pdf-contact-message');
+      const m = contactMessages.find(x=>x.id === id);
+      if(m) generateContactMessagePdf(m);
+    });
+  });
+
   document.querySelectorAll('[data-mod-delete-contact-message]').forEach(el=>{
     el.addEventListener('click', async ()=>{
       const id = el.getAttribute('data-mod-delete-contact-message');
@@ -2813,7 +2886,7 @@ function attachHandlers(){
       });
     }
 
-    generateViolationRecordPdf({
+    await generateViolationRecordPdf({
       contextTitle: a.contextTitle, content: a.content, authorName: a.authorName,
       email: a.email, violationType, actionBasisLabel, violationNumber, comments, actionLabel
     });
