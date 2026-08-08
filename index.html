@@ -212,6 +212,7 @@
     padding:12px 0;border-bottom:1px solid var(--line);
   }
   .reply:last-child{border-bottom:none;}
+  .reply-highlight{ background:var(--gold-soft); transition:background 1.4s ease; border-radius:var(--radius); }
   .reply-meta{font-size:12px;color:var(--ink-soft);margin-bottom:4px;display:flex;gap:8px;align-items:center;}
   .reply-body{font-size:13.5px;white-space:pre-wrap;}
 
@@ -387,6 +388,7 @@
         <button id="searchBtn" aria-label="Search">🔎</button>
       </div>
       <button id="contactBtn" title="Contact the moderator" style="background:none;border:1px solid rgba(255,255,255,.28);color:var(--paper);opacity:.7;font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;padding:5px 9px;border-radius:2px;white-space:nowrap;">✉️ Contact</button>
+      <button id="subscribeBtn" title="Subscribe to the weekly digest" style="background:none;border:1px solid rgba(255,255,255,.28);color:var(--paper);opacity:.7;font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;padding:5px 9px;border-radius:2px;white-space:nowrap;">🔔 Subscribe</button>
       <button id="moderateTabBtn" title="Moderator access" style="background:none;border:1px solid rgba(255,255,255,.28);color:var(--paper);opacity:.6;font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;padding:5px 9px;border-radius:2px;white-space:nowrap;">Moderate</button>
     </div>
   </div>
@@ -419,6 +421,18 @@
     <div style="display:flex;gap:8px;justify-content:flex-end;">
       <button type="button" class="report-btn" id="contactModalCancel">Close</button>
       <button type="button" class="btn-primary" id="contactModalSend">Send message</button>
+    </div>
+  </div>
+</div>
+<div id="subscribeModalOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:#fff;max-width:420px;width:90%;margin:auto;border-radius:var(--radius, 8px);padding:20px;font-family:inherit;">
+    <h3 style="margin:0 0 8px;font-size:17px;color:var(--pine);">Subscribe to the weekly digest</h3>
+    <p style="margin:0 0 12px;font-size:13px;color:var(--ink-soft);">A short email every Sunday morning summarizing new discussions, polls, and petitions from the past week. One click to unsubscribe any time — no account needed.</p>
+    <input type="text" id="subscribeEmail" placeholder="you@example.com" style="width:100%;margin-bottom:12px;border:1px solid var(--line);border-radius:var(--radius);padding:8px 10px;font-family:inherit;font-size:13px;box-sizing:border-box;">
+    <div id="subscribeSentNote" style="display:none;font-size:13px;color:var(--pine);margin-bottom:10px;">You're subscribed — check your inbox for a confirmation email.</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button type="button" class="report-btn" id="subscribeModalCancel">Close</button>
+      <button type="button" class="btn-primary" id="subscribeModalSend">Subscribe</button>
     </div>
   </div>
 </div>
@@ -471,6 +485,13 @@ function containsProfanity(text){
   const lower = text.toLowerCase();
   return CONFIG.profanityWords.some(w => new RegExp(`\\b${w}\\b`,'i').test(lower));
 }
+// Same check as containsProfanity, but returns which word(s) matched — used to log a
+// filtered_posts entry with something concrete for a moderator to review, instead of
+// just a yes/no flag.
+function getProfanityMatches(text){
+  const lower = text.toLowerCase();
+  return CONFIG.profanityWords.filter(w => new RegExp(`\\b${w}\\b`,'i').test(lower));
+}
 function isValidEmail(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
 function openSectionFPdf(){
   try{
@@ -503,6 +524,21 @@ async function sendPdfEmail(doc, toEmail, subject, htmlBody, filename){
     if(!res.ok) throw new Error('email send failed: '+res.status);
     return true;
   }catch(e){ console.error('could not send PDF email', e); return false; }
+}
+
+// Same send-email Edge Function, without a PDF attachment — for plain notification emails
+// (subscribe confirmations, per-post activity notices) that don't need a document attached.
+async function sendPlainEmail(toEmail, subject, htmlBody){
+  if(!toEmail) return false;
+  try{
+    const res = await fetch(`${CONFIG.supabaseUrl}/functions/v1/send-email`, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'apikey': CONFIG.supabaseKey, 'Authorization': `Bearer ${CONFIG.supabaseKey}` },
+      body: JSON.stringify({ to: toEmail, subject, html: htmlBody })
+    });
+    if(!res.ok) throw new Error('email send failed: '+res.status);
+    return true;
+  }catch(e){ console.error('could not send plain email', e); return false; }
 }
 
 function drawPdfHeading(doc){
@@ -679,6 +715,58 @@ const PETITION_TYPE_LABELS = {
 // Generates a PDF record of a moderator's deletion or block action: the content at time of
 // removal, the author/email, the violation type and comments picked in the moderator form, and
 // blank ruled lines for a written explanation or response.
+// Builds (but doesn't send) a PDF listing every logged violation on file for an email — used
+// when a moderator blocks someone, so the person gets the full pattern that led to the block,
+// not just the single incident. Call violationHistory(email) fresh right before this so the
+// entry that triggered the block (already recorded via recordViolationDetailed) is included.
+function generateFullViolationHistoryPdf(email){
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit:'pt', format:'letter' });
+    const marginX = 54; let y = drawPdfHeading(doc);
+    const maxWidth = doc.internal.pageSize.getWidth() - marginX*2;
+    const pageHeight = doc.internal.pageSize.getHeight();
+    function ensureRoom(lines){ if(y + lines*14 > pageHeight - 50){ doc.addPage(); y = drawPdfHeading(doc); } }
+
+    const history = violationHistory(email);
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(15);
+    doc.text('Full Violation History', marginX, y); y += 20;
+    doc.setFont('helvetica','normal'); doc.setFontSize(10.5);
+    doc.text(`Email: ${email}`, marginX, y); y += 15;
+    doc.text(`Total violations on file: ${history.length}`, marginX, y); y += 24;
+
+    history.forEach((h, i)=>{
+      ensureRoom(4);
+      doc.setFont('helvetica','bold'); doc.setFontSize(11);
+      doc.text(`Violation #${h.violationNumber || i+1} — ${new Date(h.timestamp).toLocaleString()}`, marginX, y); y += 16;
+      doc.setFont('helvetica','normal'); doc.setFontSize(10);
+      [
+        h.contextTitle ? `Discussion: ${h.contextTitle}` : null,
+        `Violation type: ${h.violationType}`,
+        h.actionBasis ? `Basis for action: ${h.actionBasis}` : null,
+        h.action ? `Action taken: ${h.action}` : null
+      ].filter(Boolean).forEach(line=>{ ensureRoom(1); doc.text(line, marginX, y); y += 13; });
+      if(h.comments){
+        ensureRoom(1);
+        const commentLines = doc.splitTextToSize(`Comments: ${h.comments}`, maxWidth);
+        commentLines.forEach(line=>{ ensureRoom(1); doc.text(line, marginX, y); y += 13; });
+      }
+      y += 12;
+      doc.setDrawColor(220,220,210);
+      ensureRoom(1);
+      doc.line(marginX, y-6, doc.internal.pageSize.getWidth()-marginX, y-6);
+    });
+
+    if(!history.length){
+      doc.setFont('helvetica','italic'); doc.setFontSize(10.5);
+      doc.text('No prior violations on file for this email.', marginX, y);
+    }
+
+    return doc;
+  }catch(e){ console.error('could not generate full violation history PDF', e); return null; }
+}
+
 async function generateViolationRecordPdf({ contextTitle, content, authorName, email, violationType, actionBasisLabel, violationNumber, comments, actionLabel }){
   try{
     const { jsPDF } = window.jspdf;
@@ -936,6 +1024,7 @@ let flaggedMap = JSON.parse(localStorage.getItem('tc-flagged') || '{}');
 let isModerator = false; // session-only, requires passphrase each visit
 let editingTopic = null; // topic id currently being edited
 let editingReply = null; // {topicId, index} currently being edited
+let replyingTo = null; // {topicId, replyId, authorName} — which reply the open reply-form is threaded under, or null
 let postKind = 'discussion'; // 'discussion' | 'poll' | 'petition' — for the new-topic form
 let newPollOptions = ['', '']; // draft option text while creating a poll
 let petitionSigners = {}; // petitionId -> array of {name,email,confirmed_voter,signed_at} (public fields only)
@@ -962,6 +1051,9 @@ function saveVotedPolls(){ localStorage.setItem('tc-voted-polls', JSON.stringify
 let blockedEmails = new Set();
 let violations = {}; // email -> { count, history: [ {contextTitle, content, authorName, violationType, actionBasis, comments, action, violationNumber, timestamp} ] }
 let contactMessages = [];
+let filteredPosts = []; // profanity-filtered posts/replies that were submitted anyway, queued for moderator review
+let moderateView = 'inbox'; // 'inbox' | 'flagged' | 'contact' | 'filtered' | 'blocked' — which Moderate-tab screen is showing
+let showReviewedFiltered = false; // toggle to reveal dismissed/reviewed entries in the Potential Violations queue
 
 const ROLE_LABELS = { resident:'Community Member', board:'Select Board Member' };
 
@@ -1028,6 +1120,52 @@ async function updateTopic(id, patch){
   if(idx>-1 && rows[0]) topics[idx] = rows[0];
 }
 
+// Fires after a reaction, reply, poll vote, or petition signature succeeds. If the topic's
+// author opted in (notify_email set) and it's been at least an hour since their last notice
+// (or they've never gotten one), sends one summary email and stamps last_notified_at. Anything
+// that happens within that hour just doesn't trigger another email — the next eligible event
+// after the cooldown covers it, which is what keeps this to at most 1 email/hour without needing
+// a separate event queue.
+async function notifyPostActivity(topicId){
+  try{
+    const t = topics.find(x=>x.id===topicId);
+    if(!t || !t.notify_email) return;
+    const last = t.last_notified_at ? new Date(t.last_notified_at).getTime() : 0;
+    if(Date.now() - last < 60*60*1000) return;
+    const link = `${location.origin}${location.pathname}`;
+    const sent = await sendPlainEmail(
+      t.notify_email,
+      `New activity on "${t.title}"`,
+      `<p>There's new activity — a reaction, reply, vote, or signature — on your post "${escapeHtml(t.title)}" on ${CONFIG.townName}.</p><p><a href="${link}">Take a look</a>. You'll get at most one of these emails per hour.</p>`
+    );
+    if(sent) await updateTopic(topicId, { last_notified_at: new Date().toISOString() });
+  }catch(e){ console.error('notifyPostActivity failed', e); }
+}
+
+// Same idea as notifyPostActivity, but for a single reply that opted in (its own notify_email/
+// last_notified_at, independent of the topic's) — fires on a reaction to that reply, or a
+// "↳ Reply" posted directly under it.
+async function notifyReplyActivity(topicId, replyId){
+  try{
+    const t = topics.find(x=>x.id===topicId);
+    if(!t) return;
+    const r = t.replies.find(x=>x.replyId===replyId);
+    if(!r || !r.notify_email) return;
+    const last = r.last_notified_at ? new Date(r.last_notified_at).getTime() : 0;
+    if(Date.now() - last < 60*60*1000) return;
+    const link = `${location.origin}${location.pathname}`;
+    const sent = await sendPlainEmail(
+      r.notify_email,
+      `New activity on your reply on "${t.title}"`,
+      `<p>There's new activity — a reaction or a reply — on your comment on "${escapeHtml(t.title)}" on ${CONFIG.townName}.</p><p><a href="${link}">Take a look</a>. You'll get at most one of these emails per hour.</p>`
+    );
+    if(sent){
+      r.last_notified_at = new Date().toISOString();
+      await updateTopic(topicId, { replies: t.replies });
+    }
+  }catch(e){ console.error('notifyReplyActivity failed', e); }
+}
+
 async function deleteTopic(id){
   const res = await fetch(sbUrl(`topics?id=eq.${id}`), { method:'DELETE', headers: SB_HEADERS });
   if(!res.ok) throw new Error('delete failed: '+res.status);
@@ -1050,6 +1188,7 @@ async function castVote(pollTopic, email, optionIndex){
   await updateTopic(pollTopic.id, { poll: pollTopic.poll });
   votedPolls[pollTopic.id] = optionIndex;
   saveVotedPolls();
+  notifyPostActivity(pollTopic.id); // fire-and-forget
 }
 function pollTotalVotes(t){
   if(!t.poll) return 0;
@@ -1126,6 +1265,7 @@ async function signPetition(petitionId, name, email, streetAddress, confirmedVot
   }
   if(!petitionSigners[petitionId]) petitionSigners[petitionId] = [];
   petitionSigners[petitionId].push({ id:'', petition_id:petitionId, name, confirmed_voter:confirmedVoter, signed_at:new Date().toISOString() });
+  notifyPostActivity(petitionId); // fire-and-forget
 }
 // Calls the passcode-gated Postgres function — returns full rows (incl. email, street_address)
 // only on a correct match. The function raises on a wrong passcode; we treat that as "no rows".
@@ -1211,6 +1351,43 @@ async function loadContactMessages(){
     if(!res.ok) throw new Error('GET contact_messages failed: '+res.status);
     contactMessages = await res.json();
   }catch(e){ console.error('contact_messages load error', e); }
+}
+
+/* ---- filtered_posts: a snapshot saved whenever someone sees the profanity warning and posts
+   anyway. Kept separate from the live topic/reply so a moderator has something to review even if
+   the original is later edited or deleted, and so the on-file record doesn't depend on the post
+   still existing. ---- */
+async function loadFilteredPosts(){
+  try{
+    const res = await fetch(sbUrl('filtered_posts?select=*&order=created_at.desc'), { headers: SB_HEADERS });
+    if(!res.ok) throw new Error('GET filtered_posts failed: '+res.status);
+    filteredPosts = await res.json();
+  }catch(e){ console.error('filtered_posts load error', e); }
+}
+async function createFilteredPost(entry){
+  try{
+    const res = await fetch(sbUrl('filtered_posts'), {
+      method:'POST',
+      headers:{...SB_HEADERS, 'Prefer':'return=representation'},
+      body: JSON.stringify([entry])
+    });
+    if(!res.ok) throw new Error('insert filtered_posts failed: '+res.status);
+    const rows = await res.json();
+    filteredPosts.unshift(rows[0]);
+  }catch(e){ console.error('could not log filtered post', e); } // logging failure shouldn't block the person's post
+}
+async function updateFilteredPost(id, patch){
+  try{
+    const res = await fetch(sbUrl(`filtered_posts?id=eq.${id}`), {
+      method:'PATCH',
+      headers:{...SB_HEADERS, 'Prefer':'return=representation'},
+      body: JSON.stringify(patch)
+    });
+    if(!res.ok) throw new Error('update filtered_posts failed: '+res.status);
+    const rows = await res.json();
+    const idx = filteredPosts.findIndex(f=>f.id===id);
+    if(idx>-1 && rows[0]) filteredPosts[idx] = rows[0];
+  }catch(e){ console.error('could not update filtered post', e); alert('Could not save that — check your connection.'); }
 }
 function violationCount(email){
   const v = violations[(email||'').trim().toLowerCase()];
@@ -1374,7 +1551,13 @@ function momentum(t){
   const r = t.reactions;
   const pollVotes = t.poll ? pollTotalVotes(t) : 0;
   const petitionCount = t.is_petition ? petitionSignerList(t.id).length : 0;
-  return (r.support||0) + (r.concern||0) + (r.idea||0) + t.replies.length*2 + pollVotes + petitionCount;
+  // Sum each reply's own reaction counts too, so a busy comment thread shows up in momentum
+  // even if nobody reacted to the top-level post itself.
+  const replyReactions = t.replies.reduce((sum, rep)=>{
+    const rr = rep.reactions;
+    return sum + (rr ? (rr.support||0) + (rr.concern||0) + (rr.idea||0) : 0);
+  }, 0);
+  return (r.support||0) + (r.concern||0) + (r.idea||0) + replyReactions + t.replies.length*2 + pollVotes + petitionCount;
 }
 function isClosed(t){
   const now = Date.now();
@@ -1438,6 +1621,20 @@ function mdToolbarHtml(targetId){
   <p style="font-size:11px;color:var(--ink-soft);margin:0 0 6px;">Formatting supported: **bold**, *italic*, and [link text](https://...)</p>`;
 }
 function uid(){ return 't'+Math.random().toString(36).slice(2,10); }
+// Backfills a stable replyId onto any reply that predates reply-to-reply threading (they only had
+// array position before). Runs once per topic, the first time its thread is opened — mutates the
+// in-memory replies in place so the render that follows already has IDs to work with, and quietly
+// persists the backfill in the background so it only ever has to happen once per topic.
+function ensureReplyIds(t){
+  let changed = false;
+  t.replies.forEach(r=>{
+    if(!r.replyId){ r.replyId = uid(); changed = true; }
+    if(!r.reactions){ r.reactions = {support:0, concern:0, idea:0}; changed = true; } // backfill for replies that predate reply reactions
+  });
+  if(changed){
+    updateTopic(t.id, { replies: t.replies }).catch(e=>console.error('could not backfill reply IDs', e));
+  }
+}
 
 function renderAgreements(compact){
   if(compact){
@@ -1752,6 +1949,7 @@ function renderThread(id){
     `;
   }
 
+  ensureReplyIds(t);
   const score = momentum(t);
   const closed = isClosed(t);
   const canReply = viewerRole !== 'board' && !closed;
@@ -1769,17 +1967,28 @@ function renderThread(id){
         </div>
       </div>`;
     }
+    const parentReply = r.inReplyTo ? t.replies.find(x=>x.replyId===r.inReplyTo) : null;
     return `
-    <div class="reply">
+    <div class="reply" id="reply-${r.replyId||''}">
       <div class="reply-meta">
         <span class="mono" style="font-weight:600;">${escapeHtml(r.authorName)}</span>
         ${r.residency && r.residency !== 'Bethel' ? `<span class="badge neighbor">🏘️ ${escapeHtml(r.residency)}</span>` : ''}
         ${r.hidden ? '<span class="badge official" style="background:var(--gold-soft);color:var(--gold-deep);">Hidden (moderator view)</span>' : ''}
         <span>· ${timeAgo(r.createdAt)}</span>
       </div>
+      ${r.inReplyTo ? (parentReply
+          ? `<button type="button" class="agreements-collapse-btn" data-jump-to-reply="${parentReply.replyId}" style="font-size:11.5px;margin:-4px 0 8px;display:block;">↳ in reply to ${escapeHtml(parentReply.authorName)}</button>`
+          : `<div class="mono" style="font-size:11.5px;color:var(--ink-soft);margin:-4px 0 8px;">↳ in reply to a since-deleted reply</div>`
+        ) : ''}
       ${r.residency && r.residency !== 'Bethel' && (r.bethelConnection || r.postPurpose) ? `<div class="mono" style="font-size:11.5px;color:var(--ink-soft);margin:-4px 0 8px;">${r.bethelConnection ? `Connection to Bethel: ${escapeHtml(r.bethelConnection)}` : ''}${r.bethelConnection && r.postPurpose ? ' · ' : ''}${r.postPurpose ? `Purpose: ${escapeHtml(r.postPurpose)}` : ''}</div>` : ''}
       <div class="reply-body">${t.is_petition ? escapeHtml(r.body) : parseMarkdownLite(r.body)}</div>
+      <div class="reaction-row" style="margin:8px 0;">
+        <button class="reaction-btn ${reactedMap[t.id+'_reply_'+r.replyId+'_support']?'active':''}" data-react-reply="support" data-reply-id="${r.replyId}" data-id="${t.id}" ${closed?'disabled':''}>👍 ${r.reactions.support}</button>
+        <button class="reaction-btn ${reactedMap[t.id+'_reply_'+r.replyId+'_concern']?'active':''}" data-react-reply="concern" data-reply-id="${r.replyId}" data-id="${t.id}" ${closed?'disabled':''}>⚠️ ${r.reactions.concern}</button>
+        <button class="reaction-btn ${reactedMap[t.id+'_reply_'+r.replyId+'_idea']?'active':''}" data-react-reply="idea" data-reply-id="${r.replyId}" data-id="${t.id}" ${closed?'disabled':''}>💡 ${r.reactions.idea}</button>
+      </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        ${canReply ? `<button class="report-btn" data-reply-to="${r.replyId}" data-reply-to-name="${escapeHtml(r.authorName)}" data-id="${t.id}">↳ Reply</button>` : ''}
         <button class="report-btn" data-report-reply="${realIndex}" data-id="${t.id}" ${flaggedMap[t.id+'_r'+realIndex]?'disabled':''}>🚩 ${flaggedMap[t.id+'_r'+realIndex] ? 'Reported' : 'Report'}</button>
         <button class="report-btn" data-edit-reply="${realIndex}" data-id="${t.id}">✏️ Edit</button>
         <button class="report-btn" data-delete-reply="${realIndex}" data-id="${t.id}">🗑️ Delete</button>
@@ -1842,8 +2051,17 @@ function renderThread(id){
     ${canReply ? `
     <div class="reply-form">
       ${renderAgreements(true)}
+      ${replyingTo && replyingTo.topicId===t.id ? `
+      <div class="agreements-panel compact" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <span>Replying to <strong>${escapeHtml(replyingTo.authorName)}</strong></span>
+        <button type="button" class="agreements-collapse-btn" id="cancelReplyingTo">Cancel</button>
+      </div>
+      ` : ''}
       <input type="text" id="replyName" placeholder="${t.is_petition ? 'Your legal name — replies on petitions are not anonymous' : "Your name (or 'Neighbor on Elm St')"}" style="width:100%;margin-bottom:8px;">
       <input type="text" id="replyEmail" placeholder="${t.is_petition ? 'Your email (stays private — your name above is public, since replies on petitions are not anonymous)' : 'Your email (kept private — only used if flagged for violating the community agreements, or to send you a copy if you delete this reply)'}" style="width:100%;margin-bottom:8px;">
+      <label style="font-size:12.5px;display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+        <input type="checkbox" id="replyNotifyMe"> Email me if there's activity on this <span style="color:var(--ink-soft);">(reactions or replies to this comment — no more than once an hour)</span>
+      </label>
       <select id="replyResidency" style="width:100%;margin-bottom:6px;border:1px solid var(--line);border-radius:var(--radius);padding:8px 10px;font-family:inherit;font-size:13px;background:#fff;">
         <option value="Bethel">Bethel resident</option>
         ${CONFIG.neighboringTowns.map(t=>`<option value="${t}">${t} resident</option>`).join('')}
@@ -1995,6 +2213,11 @@ function renderNewTopicForm(){
       <div class="field">
         <label>Your email <span style="text-transform:none;font-weight:400;">${isPetition ? '— stays private, never shown publicly. Note: unlike regular discussions, petitions are not anonymous — your legal name (not this email) is shown publicly as the organizer, and the same applies to anyone who replies here.' : '— kept private, only used if a post is flagged for violating the community agreements, or to send you a copy if you delete it'}</span></label>
         <input type="text" id="newEmail" placeholder="you@example.com">
+      </div>
+      <div class="field">
+        <label style="font-size:12.5px;text-transform:none;font-weight:400;display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" id="newNotifyMe"> Email me if there's activity on this <span style="color:var(--ink-soft);">(reactions, replies, votes, or signatures — no more than once an hour)</span>
+        </label>
       </div>
       ${!isPetition ? `
       <div class="field">
@@ -2169,13 +2392,7 @@ function renderModeratorActionForm(){
           <input type="checkbox" id="modBlockImmediately"> Also block this email immediately <span style="color:var(--ink-soft);">(bypasses the normal 2-strike rule — use for a severe, flagrant violation)</span>
         </label>
       </div>` : ''}
-      ${isBlock && a.email ? `
-      <div class="field">
-        <label style="font-size:12.5px;text-transform:none;font-weight:400;display:flex;align-items:center;gap:6px;">
-          <input type="checkbox" id="modSendEmail"> Also open my email app to notify this person <span style="color:var(--ink-soft);">(optional — the action and PDF record are kept either way, so you're never required to send anything)</span>
-        </label>
-      </div>` : ''}
-      <p style="font-size:11.5px;color:var(--ink-soft);margin:0 0 14px;">${isBlock ? 'Confirming will download a PDF record of this content and your decision, and block the email. This record is kept on file regardless of whether you choose to notify the person, so you have it later if they ask what was removed and why.' : `Confirming will permanently delete the content${a.email ? ' and automatically email a copy of the record to the person it was posted by' : ''} — no manual step needed on your end.`}</p>
+      <p style="font-size:11.5px;color:var(--ink-soft);margin:0 0 14px;">${isBlock ? `Confirming will download a PDF record of this content and your decision, and block the email.${a.email ? ' A copy of every violation on file for this email is also emailed to them automatically — no manual step needed on your end.' : ''}` : `Confirming will permanently delete the content${a.email ? ' and automatically email a copy of the record to the person it was posted by' : ''} — no manual step needed on your end.`}</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="new-topic-btn" id="modActionConfirm">${isBlock ? 'Confirm block' : 'Confirm delete'}</button>
         <button class="report-btn" id="modActionCancel">Cancel</button>
@@ -2184,10 +2401,54 @@ function renderModeratorActionForm(){
   `;
 }
 
+function moderationCounts(){
+  const flaggedTopicsCount = topics.filter(t=>t.flags>0 || t.hidden).length;
+  let flaggedRepliesCount = 0;
+  topics.forEach(t=> t.replies.forEach(r=>{ if((r.flags||0)>0 || r.hidden) flaggedRepliesCount++; }));
+  const filteredCount = filteredPosts.filter(f=>!f.reviewed).length;
+  return { flagged: flaggedTopicsCount + flaggedRepliesCount, contact: contactMessages.length, filtered: filteredCount };
+}
+
 function renderModeration(){
   if(!isModerator){
     return `<div class="empty"><h3>Moderator access needed</h3><p>Use the "change" link at the top to enter the moderator passphrase, or click the Moderate tab again.</p></div>`;
   }
+  if(moderateView === 'flagged') return renderModerationFlagged();
+  if(moderateView === 'contact') return renderModerationContact();
+  if(moderateView === 'filtered') return renderModerationFiltered();
+  if(moderateView === 'blocked') return renderModerationBlocked();
+  return renderModerationInbox();
+}
+
+function renderModerationInbox(){
+  const c = moderationCounts();
+  return `
+    <h2 style="font-size:19px;margin-bottom:16px;">Moderator Inbox</h2>
+    <div class="card" data-mod-goto="flagged">
+      <div class="card-top">
+        <h3 style="font-size:16px;">🚩 Flagged Posts</h3>
+      </div>
+      <p class="snippet" style="-webkit-line-clamp:unset;">Discussions and replies reported by residents, or auto-hidden after enough reports.</p>
+      <p style="margin:0;font-size:13.5px;font-weight:700;color:${c.flagged ? 'var(--barn)' : 'var(--ink-soft)'};">${c.flagged} awaiting review</p>
+    </div>
+    <div class="card" data-mod-goto="contact">
+      <div class="card-top">
+        <h3 style="font-size:16px;">✉️ Contact Messages</h3>
+      </div>
+      <p class="snippet" style="-webkit-line-clamp:unset;">Private messages sent through the Contact form.</p>
+      <p style="margin:0;font-size:13.5px;font-weight:700;color:${c.contact ? 'var(--gold-deep)' : 'var(--ink-soft)'};">${c.contact} unread</p>
+    </div>
+    <div class="card" data-mod-goto="filtered">
+      <div class="card-top">
+        <h3 style="font-size:16px;">🛡️ Potential Violations</h3>
+      </div>
+      <p class="snippet" style="-webkit-line-clamp:unset;">Posts that tripped the profanity filter but were submitted anyway.</p>
+      <p style="margin:0;font-size:13.5px;font-weight:700;color:${c.filtered ? 'var(--barn)' : 'var(--ink-soft)'};">${c.filtered} to review</p>
+    </div>
+  `;
+}
+
+function renderModerationFlagged(){
   const flaggedTopics = topics.filter(t=>t.flags>0 || t.hidden);
   const flaggedReplyRows = [];
   topics.forEach(t=>{
@@ -2222,6 +2483,18 @@ function renderModeration(){
     </div>
   `).join('');
 
+  return `
+    <button class="back-link" data-mod-goto="inbox">&larr; Moderator Inbox</button>
+    <div class="digest-note">Anything with at least one report lands here so you have early visibility, but it stays fully visible on the public site until it reaches ${CONFIG.flagThreshold} reports, at which point it auto-hides from residents. Once something is auto-hidden, it stays that way unless you restore it here. You can also act on a single flagrant violation immediately, from any discussion — you don't have to wait for reports to accumulate.</div>
+    <h3 style="font-size:15px;margin-bottom:10px;">Flagged discussions</h3>
+    ${topicRows || '<p style="color:var(--ink-soft);font-size:13.5px;margin-bottom:20px;">Nothing flagged right now.</p>'}
+    <h3 style="font-size:15px;margin:24px 0 10px;">Flagged replies</h3>
+    ${replyRows || '<p style="color:var(--ink-soft);font-size:13.5px;">Nothing flagged right now.</p>'}
+    <button class="info-toggle compact-variant" data-mod-goto="blocked" style="margin-top:20px;">🚫 Manage blocked emails (${blockedEmails.size})</button>
+  `;
+}
+
+function renderModerationBlocked(){
   const blockedRows = [...blockedEmails].map(email=>`
     <div class="digest-row" style="cursor:default;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
       <span class="mono" style="font-size:13px;">${escapeHtml(email)}</span>
@@ -2229,6 +2502,21 @@ function renderModeration(){
     </div>
   `).join('') || '<p style="color:var(--ink-soft);font-size:13.5px;">No blocked emails.</p>';
 
+  return `
+    <button class="back-link" data-mod-goto="flagged">&larr; Flagged Posts</button>
+    <h3 style="font-size:15px;margin-bottom:10px;">Blocked emails</h3>
+    <p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:10px;">Blocking an email prevents it from posting new topics or replies. It doesn't remove anything already posted.</p>
+    <div class="form-panel" style="margin-bottom:14px;">
+      <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;">
+        <input type="text" id="manualBlockEmail" placeholder="email@example.com" style="flex:1;min-width:200px;border:1px solid var(--line);border-radius:var(--radius);padding:8px 10px;font-family:inherit;font-size:13px;">
+        <button class="btn-primary" id="manualBlockBtn">Block email</button>
+      </div>
+    </div>
+    ${blockedRows}
+  `;
+}
+
+function renderModerationContact(){
   const messageRows = contactMessages.map(m=>`
     <div class="digest-row">
       <p style="font-size:13.5px;margin:0 0 6px;white-space:pre-wrap;">${escapeHtml(m.message)}</p>
@@ -2238,27 +2526,48 @@ function renderModeration(){
         <button class="report-btn" data-mod-delete-contact-message="${m.id}">Mark read &amp; delete</button>
       </div>
     </div>
-  `).join('') || '<p style="color:var(--ink-soft);font-size:13.5px;margin-bottom:20px;">No messages right now.</p>';
+  `).join('') || '<p style="color:var(--ink-soft);font-size:13.5px;">No messages right now.</p>';
 
   return `
+    <button class="back-link" data-mod-goto="inbox">&larr; Moderator Inbox</button>
     <h3 style="font-size:15px;margin-bottom:10px;">Messages from the Contact form</h3>
     ${messageRows}
+  `;
+}
 
-    <div class="digest-note">Moderator view — anything with at least one report lands here so you have early visibility, but it stays fully visible on the public site until it reaches ${CONFIG.flagThreshold} reports, at which point it auto-hides from residents. Once something is auto-hidden, it stays that way unless you restore it here. You can also act on a single flagrant violation immediately, from any discussion — you don't have to wait for reports to accumulate.</div>
-    <h3 style="font-size:15px;margin-bottom:10px;">Flagged discussions</h3>
-    ${topicRows || '<p style="color:var(--ink-soft);font-size:13.5px;margin-bottom:20px;">Nothing flagged right now.</p>'}
-    <h3 style="font-size:15px;margin:24px 0 10px;">Flagged replies</h3>
-    ${replyRows || '<p style="color:var(--ink-soft);font-size:13.5px;">Nothing flagged right now.</p>'}
+function renderModerationFiltered(){
+  const unreviewed = filteredPosts.filter(f=>!f.reviewed);
+  const reviewed = filteredPosts.filter(f=>f.reviewed);
 
-    <h3 style="font-size:15px;margin:24px 0 10px;">Blocked emails</h3>
-    <p style="font-size:12.5px;color:var(--ink-soft);margin-bottom:10px;">Blocking an email prevents it from posting new topics or replies. It doesn't remove anything already posted.</p>
-    <div class="form-panel" style="margin-bottom:14px;">
-      <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;">
-        <input type="text" id="manualBlockEmail" placeholder="email@example.com" style="flex:1;min-width:200px;border:1px solid var(--line);border-radius:var(--radius);padding:8px 10px;font-family:inherit;font-size:13px;">
-        <button class="btn-primary" id="manualBlockBtn">Block email</button>
+  function filteredRow(f){
+    const stillExists = f.kind==='topic'
+      ? topics.some(t=>t.id===f.topic_id)
+      : (()=>{ const t=topics.find(t=>t.id===f.topic_id); return t && t.replies[f.reply_index]; })();
+    return `
+    <div class="digest-row" style="cursor:default;">
+      <div class="digest-title">${f.kind==='reply' ? 'Reply on: ' : ''}${escapeHtml(f.context_title||'(untitled)')}</div>
+      <p style="font-size:13px;color:var(--ink-soft);margin:6px 0;">"${escapeHtml((f.content||'').slice(0,200))}${(f.content||'').length>200?'…':''}"</p>
+      <p style="font-size:12px;color:var(--ink-soft);">Flagged word(s): <strong>${escapeHtml(f.matched_words||'—')}</strong> · ${escapeHtml(f.author_name||'—')} · ${timeAgo(f.created_at)}</p>
+      <div class="row" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+        ${!f.reviewed ? `
+          ${stillExists
+            ? `<button class="new-topic-btn" data-filtered-delete="${f.id}">🛡️ Delete now (violation)</button>
+               <button class="report-btn" data-filtered-view="${f.id}">View original post</button>`
+            : `<span style="font-size:12px;color:var(--ink-soft);font-style:italic;">Original post no longer exists.</span>`}
+          <button class="report-btn" data-filtered-dismiss="${f.id}">Dismiss</button>
+        ` : `<span style="font-size:12px;color:var(--ink-soft);">Reviewed ${timeAgo(f.reviewed_at||f.created_at)}</span>`}
       </div>
-    </div>
-    ${blockedRows}
+    </div>`;
+  }
+
+  return `
+    <button class="back-link" data-mod-goto="inbox">&larr; Moderator Inbox</button>
+    <div class="digest-note">Posts land here automatically when someone submits after seeing the profanity warning. Nothing is removed until you act — use "Delete now" to remove and log a violation, "View original post" to see it in context first, or "Dismiss" if it's a false positive.</div>
+    ${unreviewed.length ? unreviewed.map(filteredRow).join('') : '<p style="color:var(--ink-soft);font-size:13.5px;">Nothing to review right now.</p>'}
+    ${reviewed.length ? `
+    <button class="info-toggle compact-variant" id="toggleReviewedFiltered" style="margin-top:20px;">${showReviewedFiltered ? '▾' : '▸'} Reviewed (${reviewed.length})</button>
+    ${showReviewedFiltered ? reviewed.map(filteredRow).join('') : ''}
+    ` : ''}
   `;
 }
 
@@ -2442,7 +2751,26 @@ function attachHandlers(){
   if(flaggedOnlyEl) flaggedOnlyEl.addEventListener('change', ()=>{ showOnlyFlagged = flaggedOnlyEl.checked; render(); });
 
   document.querySelectorAll('[data-open]').forEach(el=>{
-    el.addEventListener('click', ()=>{ currentTopicId = el.getAttribute('data-open'); render(); window.scrollTo(0,0); });
+    el.addEventListener('click', ()=>{ replyingTo = null; currentTopicId = el.getAttribute('data-open'); render(); window.scrollTo(0,0); });
+  });
+  document.querySelectorAll('[data-reply-to]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      replyingTo = { topicId: el.getAttribute('data-id'), replyId: el.getAttribute('data-reply-to'), authorName: el.getAttribute('data-reply-to-name') };
+      render();
+      const ta = document.getElementById('replyBody');
+      if(ta) ta.focus();
+    });
+  });
+  const cancelReplyingToBtn = document.getElementById('cancelReplyingTo');
+  if(cancelReplyingToBtn) cancelReplyingToBtn.addEventListener('click', ()=>{ replyingTo = null; render(); });
+  document.querySelectorAll('[data-jump-to-reply]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const targetEl = document.getElementById('reply-'+el.getAttribute('data-jump-to-reply'));
+      if(!targetEl) return;
+      targetEl.scrollIntoView({behavior:'smooth', block:'center'});
+      targetEl.classList.add('reply-highlight');
+      setTimeout(()=>targetEl.classList.remove('reply-highlight'), 1600);
+    });
   });
   document.querySelectorAll('[data-sort]').forEach(el=>{
     el.addEventListener('click', ()=>{ currentSort = el.getAttribute('data-sort'); render(); });
@@ -2455,7 +2783,7 @@ function attachHandlers(){
   if(openNew) openNew.addEventListener('click', ()=>{ postKind='discussion'; newPollOptions=['','']; currentTab='new'; currentTopicId=null; render(); });
 
   const back = document.getElementById('backHome');
-  if(back) back.addEventListener('click', ()=>{ postKind='discussion'; newPollOptions=['','']; currentTopicId=null; currentTab='home'; render(); });
+  if(back) back.addEventListener('click', ()=>{ postKind='discussion'; newPollOptions=['','']; currentTopicId=null; replyingTo=null; currentTab='home'; render(); });
 
   document.querySelectorAll('[data-react]').forEach(el=>{
     el.addEventListener('click', async ()=>{
@@ -2465,16 +2793,48 @@ function attachHandlers(){
       const t = topics.find(x=>x.id===id);
       if(!t) return;
       if(isClosed(t)) return;
+      let wasAdded = false;
       if(reactedMap[key]){
         t.reactions[type] = Math.max(0, t.reactions[type]-1);
         delete reactedMap[key];
       }else{
         t.reactions[type] += 1;
         reactedMap[key] = true;
+        wasAdded = true;
       }
       saveReacted();
       try{ await updateTopic(id, {reactions: t.reactions}); }
       catch(e){ console.error(e); alert('Could not save that reaction — check your connection.'); }
+      if(wasAdded) notifyPostActivity(id); // fire-and-forget, only for adding a reaction (not removing one)
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-react-reply]').forEach(el=>{
+    el.addEventListener('click', async ()=>{
+      const topicId = el.getAttribute('data-id');
+      const replyId = el.getAttribute('data-reply-id');
+      const type = el.getAttribute('data-react-reply');
+      const key = topicId+'_reply_'+replyId+'_'+type;
+      const t = topics.find(x=>x.id===topicId);
+      if(!t) return;
+      if(isClosed(t)) return;
+      const r = t.replies.find(x=>x.replyId===replyId);
+      if(!r) return;
+      if(!r.reactions) r.reactions = {support:0, concern:0, idea:0};
+      let wasAdded = false;
+      if(reactedMap[key]){
+        r.reactions[type] = Math.max(0, r.reactions[type]-1);
+        delete reactedMap[key];
+      }else{
+        r.reactions[type] += 1;
+        reactedMap[key] = true;
+        wasAdded = true;
+      }
+      saveReacted();
+      try{ await updateTopic(topicId, {replies: t.replies}); }
+      catch(e){ console.error(e); alert('Could not save that reaction — check your connection.'); }
+      if(wasAdded) notifyReplyActivity(topicId, replyId); // fire-and-forget, only for adding (not removing)
       render();
     });
   });
@@ -2542,10 +2902,13 @@ function attachHandlers(){
       if(!dateVal){ alert('Pick a closing date, or switch to "Open indefinitely".'); return; }
       closesAt = new Date(dateVal + 'T23:59:59').toISOString();
     }
-    if(containsProfanity(title+' '+body+' '+name)){
+    const newTopicProfanityMatches = getProfanityMatches(title+' '+body+' '+name);
+    if(newTopicProfanityMatches.length){
       if(!await showProfanityModal()) return;
     }
     const wantsCopy = document.getElementById('newDownloadCopy').checked;
+    const notifyMeEl = document.getElementById('newNotifyMe');
+    const notifyEmailForTopic = (notifyMeEl && notifyMeEl.checked) ? email : null;
     const createdAt = new Date().toISOString();
     let residency = 'Bethel', bethelConnection = null, postPurpose = null;
     if(!isPetitionSubmit){
@@ -2585,9 +2948,17 @@ function attachHandlers(){
         bethel_connection: bethelConnection, post_purpose: postPurpose,
         is_petition: isPetitionSubmit,
         petition_type: petitionType, petition_meeting_date: petitionMeetingDate, petition_request_ballot: petitionRequestBallot,
+        notify_email: notifyEmailForTopic, last_notified_at: null,
         reactions:{support:0,concern:0,idea:0}, replies:[]
       });
     }catch(e){ console.error(e); alert('Could not post that:\n\n' + e.message); return; }
+    if(newTopicProfanityMatches.length){
+      createFilteredPost({
+        id: uid(), kind:'topic', topic_id:newId, reply_index:null,
+        context_title:title, content:body, matched_words:newTopicProfanityMatches.join(', '),
+        author_name:name, author_email:email, reviewed:false
+      });
+    }
     if(isPetitionSubmit){
       try{
         await createPetitionRecord({ id:newId, title, description:body, category, creatorName:name, creatorEmail:email, passcode:petitionPasscode, closesAt });
@@ -2611,10 +2982,13 @@ function attachHandlers(){
     if(!body) return;
     if(!isValidEmail(email)){ alert('Please add a valid email — it stays private and is only used if this reply needs review.'); return; }
     if(isBlocked(email)){ alert('This email address is not able to post here right now. If you think this is a mistake, contact whoever moderates this site.'); return; }
-    if(containsProfanity(body+' '+name)){
+    const replyProfanityMatches = getProfanityMatches(body+' '+name);
+    if(replyProfanityMatches.length){
       if(!await showProfanityModal()) return;
     }
     const wantsCopy = document.getElementById('replyDownloadCopy').checked;
+    const replyNotifyMeEl = document.getElementById('replyNotifyMe');
+    const notifyEmailForReply = (replyNotifyMeEl && replyNotifyMeEl.checked) ? email : null;
     const replyCreatedAt = Date.now();
     let replyResidency = document.getElementById('replyResidency').value;
     if(replyResidency === '__other__'){
@@ -2625,10 +2999,24 @@ function attachHandlers(){
       replyBethelConnection = document.getElementById('replyBethelConnection').value;
       replyPurposeVal = document.getElementById('replyPurpose').value.trim() || null;
     }
-    t.replies.push({ authorName:name, authorType:'resident', contactEmail: email, body, createdAt: replyCreatedAt, flags:0, hidden:false, residency: replyResidency, bethelConnection: replyBethelConnection, postPurpose: replyPurposeVal });
+    const newReplyId = uid();
+    const inReplyToId = (replyingTo && replyingTo.topicId===t.id) ? replyingTo.replyId : null;
+    t.replies.push({ replyId:newReplyId, inReplyTo:inReplyToId, authorName:name, authorType:'resident', contactEmail: email, body, createdAt: replyCreatedAt, flags:0, hidden:false, residency: replyResidency, bethelConnection: replyBethelConnection, postPurpose: replyPurposeVal, reactions:{support:0,concern:0,idea:0}, notify_email: notifyEmailForReply, last_notified_at: null });
     let saveFailed = false;
     try{ await updateTopic(t.id, {replies: t.replies}); }
     catch(e){ console.error(e); alert('Could not save that reply — check your connection.'); t.replies.pop(); saveFailed = true; }
+    if(!saveFailed){
+      notifyPostActivity(t.id); // fire-and-forget: topic author, if opted in
+      if(inReplyToId) notifyReplyActivity(t.id, inReplyToId); // fire-and-forget: the specific reply this was posted under, if opted in
+      replyingTo = null; // clear the "replying to" banner once posted
+    }
+    if(!saveFailed && replyProfanityMatches.length){
+      createFilteredPost({
+        id: uid(), kind:'reply', topic_id:t.id, reply_index:t.replies.length-1,
+        context_title:t.title, content:body, matched_words:replyProfanityMatches.join(', '),
+        author_name:name, author_email:email, reviewed:false
+      });
+    }
     if(!saveFailed && t.is_petition){
       const entry = { kind:'reply', name, body, timestamp:replyCreatedAt };
       generatePetitionReceiptPdf(t, entry);
@@ -2665,6 +3053,51 @@ function attachHandlers(){
       t.replies[idx].flags = (t.replies[idx].flags||0) + 1;
       if(t.replies[idx].flags >= CONFIG.flagThreshold) t.replies[idx].hidden = true;
       try{ await updateTopic(id, {replies: t.replies}); }catch(e){ console.error(e); }
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-mod-goto]').forEach(el=>{
+    el.addEventListener('click', ()=>{ moderateView = el.getAttribute('data-mod-goto'); render(); });
+  });
+  const toggleReviewedBtn = document.getElementById('toggleReviewedFiltered');
+  if(toggleReviewedBtn) toggleReviewedBtn.addEventListener('click', ()=>{ showReviewedFiltered = !showReviewedFiltered; render(); });
+
+  document.querySelectorAll('[data-filtered-dismiss]').forEach(el=>{
+    el.addEventListener('click', async ()=>{
+      const id = el.getAttribute('data-filtered-dismiss');
+      await updateFilteredPost(id, { reviewed:true, reviewed_at: new Date().toISOString() });
+      render();
+    });
+  });
+  document.querySelectorAll('[data-filtered-view]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const id = el.getAttribute('data-filtered-view');
+      const f = filteredPosts.find(x=>x.id===id);
+      if(!f) return;
+      replyingTo = null;
+      currentTopicId = f.topic_id;
+      currentTab = 'home';
+      document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+      render();
+      window.scrollTo(0,0);
+    });
+  });
+  document.querySelectorAll('[data-filtered-delete]').forEach(el=>{
+    el.addEventListener('click', async ()=>{
+      const id = el.getAttribute('data-filtered-delete');
+      const f = filteredPosts.find(x=>x.id===id);
+      if(!f) return;
+      if(f.kind === 'topic'){
+        const t = topics.find(x=>x.id===f.topic_id);
+        if(!t){ alert('This post no longer exists.'); await updateFilteredPost(id, {reviewed:true, reviewed_at:new Date().toISOString()}); render(); return; }
+        moderatorAction = { kind:'topic', id:t.id, contextTitle:t.title, content:t.body, authorName:t.author_name, email:t.contact_email, suggestedBasis: violationCount(t.contact_email)>0 ? 'multiple' : 'instant', filteredPostId:id };
+      } else {
+        const t = topics.find(x=>x.id===f.topic_id);
+        if(!t || !t.replies[f.reply_index]){ alert('This reply no longer exists.'); await updateFilteredPost(id, {reviewed:true, reviewed_at:new Date().toISOString()}); render(); return; }
+        const r = t.replies[f.reply_index];
+        moderatorAction = { kind:'reply', topicId:t.id, replyIndex:f.reply_index, contextTitle:t.title, content:r.body, authorName:r.authorName, email:r.contactEmail, suggestedBasis: violationCount(r.contactEmail)>0 ? 'multiple' : 'instant', filteredPostId:id };
+      }
       render();
     });
   });
@@ -2874,8 +3307,6 @@ function attachHandlers(){
     const comments = document.getElementById('modComments').value.trim();
     const blockImmediatelyEl = document.getElementById('modBlockImmediately');
     const blockImmediately = blockImmediatelyEl ? blockImmediatelyEl.checked : false;
-    const sendEmailEl = document.getElementById('modSendEmail');
-    const sendEmail = sendEmailEl ? sendEmailEl.checked : false;
     const actionLabel = a.kind === 'block' ? 'Email blocked' : 'Content deleted';
 
     let violationNumber = null;
@@ -2891,6 +3322,7 @@ function attachHandlers(){
       email: a.email, violationType, actionBasisLabel, violationNumber, comments, actionLabel
     });
 
+    let didBlock = false;
     try{
       if(a.kind === 'topic'){
         await deleteTopic(a.id);
@@ -2903,10 +3335,27 @@ function attachHandlers(){
       }
       if(a.email && (a.kind === 'block' || blockImmediately || (violationNumber && violationNumber >= 2))){
         await blockEmail(a.email, `${violationType} — ${actionBasisLabel}${comments ? ' — ' + comments : ''}`);
+        didBlock = true;
       }
     }catch(e){ console.error(e); alert('Something went wrong completing this action — check your connection. The PDF and on-file record were still saved.'); }
 
-    if(sendEmail && a.email) openModeratorMailto(a.email, a.contextTitle);
+    // Whenever this action results in a block — whether it's an explicit "Block this email" or
+    // a delete that auto-blocks (immediate flag, or 2nd violation) — automatically email the
+    // full violation history, replacing the old manual "open my email app" step.
+    if(didBlock && a.email){
+      const historyDoc = generateFullViolationHistoryPdf(a.email);
+      if(historyDoc){
+        const sent = await sendPdfEmail(
+          historyDoc, a.email,
+          `Your access to ${CONFIG.townName} has been blocked`,
+          `<p>Your email has been blocked from posting on ${CONFIG.townName} following a violation of the community agreements. Attached is a full record of every violation on file for this email.</p>`,
+          `bethel-common-violation-history-${a.email.replace(/[^a-z0-9]+/gi,'-')}.pdf`
+        );
+        if(!sent) alert('The email was blocked, but the violation-history email could not be sent — check your connection.');
+      }
+    }
+
+    if(a.filteredPostId) await updateFilteredPost(a.filteredPostId, { reviewed:true, reviewed_at:new Date().toISOString() });
     moderatorAction = null;
     currentTab = 'moderate';
     currentTopicId = null;
@@ -2938,6 +3387,7 @@ if(moderateBtn) moderateBtn.addEventListener('click', ()=>{
   document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
   currentTab = 'moderate';
   currentTopicId = null;
+  moderateView = 'inbox';
   render();
 });
 
@@ -2999,6 +3449,40 @@ document.getElementById('contactModalSend').addEventListener('click', async ()=>
   }catch(e){ console.error(e); alert('Could not send — check your connection and try again.'); }
 });
 
+// Subscribe modal — adds/reactivates a row in `subscribers`, then sends a one-off confirmation
+// email (not through the weekly digest function) with a one-click unsubscribe link built from the
+// token Supabase generates for that row.
+const subscribeBtnEl = document.getElementById('subscribeBtn');
+if(subscribeBtnEl) subscribeBtnEl.addEventListener('click', ()=>{
+  document.getElementById('subscribeSentNote').style.display = 'none';
+  document.getElementById('subscribeEmail').value = '';
+  document.getElementById('subscribeModalOverlay').style.display = 'flex';
+});
+document.getElementById('subscribeModalCancel').addEventListener('click', ()=>{
+  document.getElementById('subscribeModalOverlay').style.display = 'none';
+});
+document.getElementById('subscribeModalSend').addEventListener('click', async ()=>{
+  const email = document.getElementById('subscribeEmail').value.trim();
+  if(!isValidEmail(email)){ alert('Please enter a valid email.'); return; }
+  try{
+    const res = await fetch(sbUrl('subscribers?on_conflict=email'), {
+      method:'POST',
+      headers:{...SB_HEADERS, 'Prefer':'return=representation,resolution=merge-duplicates'},
+      body: JSON.stringify([{ email: email.toLowerCase(), active:true, subscribed_at:new Date().toISOString() }])
+    });
+    if(!res.ok) throw new Error('subscribe failed: '+res.status);
+    const rows = await res.json();
+    const row = rows[0];
+    const unsubUrl = `${location.origin}${location.pathname}?unsubscribe=${row.unsubscribe_token}`;
+    await sendPlainEmail(
+      email,
+      `You're subscribed to ${CONFIG.townName}'s weekly digest`,
+      `<p>You're now subscribed to a short weekly email from ${CONFIG.townName}, summarizing new discussions, polls, and petitions from the past week.</p><p>Didn't sign up for this, or want to stop? <a href="${unsubUrl}">Unsubscribe with one click</a> — no account needed.</p>`
+    );
+    document.getElementById('subscribeSentNote').style.display = 'block';
+  }catch(e){ console.error(e); alert('Could not subscribe — check your connection and try again.'); }
+});
+
 // Profanity warning modal (replaces a plain confirm() so it can include a real link to the agreements)
 let profanityModalResolve = null;
 function showProfanityModal(){
@@ -3043,14 +3527,38 @@ document.getElementById('searchBtn').addEventListener('click', ()=>{
   goHomeWithSearch();
 });
 
+// Handles a one-click unsubscribe link (?unsubscribe=<token>) — no login, the token itself is
+// the credential. Deactivates the row and cleans the URL so a refresh doesn't repeat it.
+async function handleUnsubscribeParam(){
+  const token = new URLSearchParams(location.search).get('unsubscribe');
+  if(!token) return;
+  try{
+    const res = await fetch(sbUrl(`subscribers?unsubscribe_token=eq.${encodeURIComponent(token)}`), {
+      method:'PATCH',
+      headers:{...SB_HEADERS, 'Prefer':'return=representation'},
+      body: JSON.stringify({ active:false })
+    });
+    if(res.ok){
+      const rows = await res.json();
+      alert(rows.length ? "You're unsubscribed — you won't get any more weekly digest emails." : "That unsubscribe link isn't valid — you may already be unsubscribed.");
+    }
+  }catch(e){ console.error('unsubscribe failed', e); }
+  finally{
+    const cleanUrl = location.origin + location.pathname;
+    history.replaceState({}, '', cleanUrl);
+  }
+}
+
 (async function init(){
   if(!viewerRole) viewerRole = 'resident';
   updateViewerLabel();
   updateModerateTabVisibility();
+  await handleUnsubscribeParam();
   await loadTopics();
   await loadBlockedEmails();
   await loadViolations();
   await loadContactMessages();
+  await loadFilteredPosts();
   await loadPetitionSigners();
   currentTab = 'about';
   document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
